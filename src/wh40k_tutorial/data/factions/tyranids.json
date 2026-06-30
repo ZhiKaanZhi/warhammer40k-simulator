@@ -1,0 +1,45 @@
+{
+  "faction": "tyranids",
+  "display_name": "Tyranids",
+  "units": {
+    "termagants": {
+      "display_name": "Termagants",
+      "profile": {
+        "movement": 6,
+        "toughness": 3,
+        "save": 5,
+        "wounds": 1,
+        "leadership": 8,
+        "objective_control": 2
+      },
+      "unit_size": { "min": 10, "max": 20, "default": 10 },
+      "weapons": {
+        "fleshborer": {
+          "display_name": "Fleshborer",
+          "type": "ranged",
+          "range": 18,
+          "attacks": 1,
+          "skill": 4,
+          "strength": 4,
+          "ap": 0,
+          "damage": 1,
+          "keywords": []
+        },
+        "claws_and_teeth": {
+          "display_name": "Claws and Teeth",
+          "type": "melee",
+          "range": 0,
+          "attacks": 1,
+          "skill": 4,
+          "strength": 3,
+          "ap": 0,
+          "damage": 1,
+          "keywords": []
+        }
+      },
+      "default_loadout": { "fleshborer": "all" },
+      "abilities": [],
+      "notes": "Default to fleshborer loadout (the basic gun). Termagants have an 'Endless Multitude' ability — return to battlefield as Reinforcements when destroyed under certain conditions. Out of scope for v1; document here so it's not forgotten. Verify current profile via the rules-researcher agent before relying on these numbers."
+    }
+  }
+}

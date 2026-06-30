@@ -1,0 +1,29 @@
+{
+  "id": "01_first_shots",
+  "title": "First Shots",
+  "teaches": "the four-step combat sequence: hit roll, wound roll, save, damage.",
+  "intro": "Your squad of Intercessor Space Marines has spotted a swarm of Tyranid Termagants across the field. They have just enough time for one volley of bolt rifle fire before the swarm closes. Watch each die carefully — every roll has a rule behind it, and we'll explain each one as it happens.",
+  "player_side": "attacker",
+  "sides": {
+    "attacker": {
+      "faction": "space_marines",
+      "units": [
+        { "id": "marines_1", "datasheet": "intercessor_squad", "position": [3, 4], "models": 5 }
+      ]
+    },
+    "defender": {
+      "faction": "tyranids",
+      "units": [
+        { "id": "termagants_1", "datasheet": "termagants", "position": [9, 4], "models": 10 }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Your Intercessors raise their bolt rifles. Each Marine fires twice — five Marines, two shots each, ten attacks total. The dice that follow will determine what happens."
+    }
+  ],
+  "outro": "That was the full combat sequence: roll to HIT (3+ because the Marines' Ballistic Skill is 3), roll to WOUND (3+ because Strength 4 beats Toughness 3), roll to SAVE (Termagants need 6+ — their 5+ save is reduced by the bolt rifle's AP -1), then deal DAMAGE (1 per failed save, and Termagants have 1 wound each, so each failed save kills a model). Every shooting attack in 40k follows this exact sequence. Next scenario will introduce what changes when the defender is tougher."
+}

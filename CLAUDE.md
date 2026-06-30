@@ -1,6 +1,6 @@
 # warhammer40k-simulator
 
-An interactive **terminal tutorial** that teaches Warhammer 40,000 (10th edition) by playing it. The player makes decisions for one side; the other side is currently scripted but the architecture is designed so a heuristic AI can drop in later without changing scenarios.
+An interactive **terminal tutorial** that teaches Warhammer 40,000 (11th edition) by playing it. The player makes decisions for one side; the other side is currently scripted but the architecture is designed so a heuristic AI can drop in later without changing scenarios.
 
 The goal is **learning**, not rules-accurate simulation. We narrate every dice roll and explain the rule that drove it. Accuracy of the rules we *do* model matters; completeness of the rule set does not.
 
@@ -91,7 +91,7 @@ Only *after* phase 7 do we consider the heuristic AI opponent. Don't be tempted 
 
 ## Rules accuracy
 
-Warhammer 40k 10th edition is the reference. When implementing a rule:
+Warhammer 40k 11th edition (released June 2026) is the reference. It is an evolution of 10th — the core hit/wound/save/damage math is shared — so 10th sources stay useful for unchanged mechanics, but anything edition-sensitive must be confirmed against 11th (see ADR 0004). When implementing a rule:
 
 - If it's a core mechanic (hit roll, wound chart, AP, saves, damage), implement it exactly as written.
 - If it's a unit-specific ability we haven't modeled yet, leave a `TODO:` with the rule name — don't fudge it.
@@ -114,7 +114,7 @@ Each of these is a sensible v2 addition. Resist adding them to v1.
 
 ## Skills and agents
 
-`.claude/agents/rules-researcher.md` — Use when adding a unit, weapon, or ability and you need to confirm the actual 10th-edition profile or rule text. Searches Wahapedia and official sources, returns structured data, never invents.
+`.claude/agents/rules-researcher.md` — Use when adding a unit, weapon, or ability and you need to confirm the actual 11th-edition profile or rule text. Searches the official Core Rules and Warhammer Community; treats Wahapedia as a 10th baseline (not yet updated to 11th). Returns structured data, never invents.
 
 `.claude/skills/add-scenario/` — Walkthrough for writing a new tutorial scenario: what the JSON schema is, how to pick a single concept to teach, how to test it plays correctly.
 

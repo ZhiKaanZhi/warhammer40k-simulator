@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wh40k-tutorial"
 version = "0.1.0"
-description = "An interactive terminal tutorial for learning Warhammer 40,000 (10th edition)"
+description = "An interactive terminal tutorial for learning Warhammer 40,000 (11th edition)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

@@ -1,4 +1,4 @@
-"""Dice primitives for the 10th-edition Warhammer 40,000 rules.
+"""Dice primitives for the 11th-edition Warhammer 40,000 rules (core dice math unchanged from 10th).
 
 This module is the foundation everything else builds on. It is deliberately
 overspecified (more features than v1 needs) because:
@@ -125,7 +125,7 @@ def roll_d6(
 def wound_target(strength: int, toughness: int) -> int:
     """Return the to-wound target (2..6) for a given strength vs. toughness comparison.
 
-    The 10th-edition wound chart:
+    The 11th-edition wound chart (unchanged from 10th):
         S >= 2*T   -> 2+
         S >  T     -> 3+
         S == T     -> 4+

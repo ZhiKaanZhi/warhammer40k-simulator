@@ -1,6 +1,6 @@
 ---
 name: add-unit
-description: Use this skill whenever adding a new unit datasheet, weapon profile, or faction to the project. Triggers on any mention of adding an Intercessor / Termagant / Necron Warrior / Ork Boy / Fire Warrior or any other 40k unit, on editing files under data/factions/, on creating a new faction JSON file from scratch, or on questions about the unit JSON schema. Covers the schema, the workflow for sourcing real 10th-edition data, and validation.
+description: Use this skill whenever adding a new unit datasheet, weapon profile, or faction to the project. Triggers on any mention of adding an Intercessor / Termagant / Necron Warrior / Ork Boy / Fire Warrior or any other 40k unit, on editing files under data/factions/, on creating a new faction JSON file from scratch, or on questions about the unit JSON schema. Covers the schema, the workflow for sourcing real 11th-edition data, and validation.
 ---
 
 # Adding a Unit Datasheet
@@ -48,7 +48,7 @@ Units live in `src/wh40k_tutorial/data/factions/<faction>.json`. One file per fa
 
 Field reference:
 
-- **profile** — the unit-level stats. Match 10th-edition datasheet field names where reasonable: `movement` is M (inches), `toughness` is T, `save` is the armor save target (the "+" is implicit), `wounds` is W per model, `leadership` is the leadership target, `objective_control` is OC. Skip Invulnerable saves for v1 unless a scenario explicitly needs one — then add `invulnerable_save` to the profile.
+- **profile** — the unit-level stats. Match 11th-edition datasheet field names where reasonable: `movement` is M (inches), `toughness` is T, `save` is the armor save target (the "+" is implicit), `wounds` is W per model, `leadership` is the leadership target, `objective_control` is OC. Skip Invulnerable saves for v1 unless a scenario explicitly needs one — then add `invulnerable_save` to the profile.
 
 - **unit_size** — min and max model count, plus a sensible default for tutorials.
 
@@ -64,7 +64,7 @@ Field reference:
 
 ## Workflow for adding a unit
 
-1. **Verify the real profile.** Use the `rules-researcher` agent — pass it the unit name and ask for the current 10th-edition profile. Don't type stats from memory or from a Goonhammer article you skimmed; balance dataslates change profiles.
+1. **Verify the real profile.** Use the `rules-researcher` agent — pass it the unit name and ask for the current 11th-edition profile. Don't type stats from memory or from a Goonhammer article you skimmed; balance dataslates change profiles.
 
 2. **Identify what to simplify.** Most real datasheets have a Sergeant or unit champion with different weapon options. For v1 tutorials, pick one loadout — usually the basic one — and document the simplification in `notes`. We are teaching mechanics, not list-building.
 
@@ -91,6 +91,6 @@ When all five exist with clean JSON and the engine handles their basic weapons, 
 ## Anti-patterns
 
 - **Pasting Wahapedia text into `notes`.** Paraphrase in your own words.
-- **Inventing keywords.** If 10th edition doesn't have it, we don't have it.
+- **Inventing keywords.** If 11th edition doesn't have it, we don't have it.
 - **"Close enough" stats.** A wound roll target is determined by the strength-to-toughness ratio; getting toughness wrong by 1 changes the whole math. Verify.
 - **Mixing AP sign conventions.** Always store AP as a positive integer.

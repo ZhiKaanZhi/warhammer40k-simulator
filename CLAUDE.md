@@ -44,8 +44,8 @@ src/wh40k_tutorial/
 │   └── combat.py   # The hit → wound → save → damage pipeline
 ├── strategies/     # How a side picks its actions each turn
 │   ├── base.py     # Strategy protocol — extension point for AI
-│   ├── human.py    # Prompts the player via CLI
-│   └── scripted.py # Reads moves from the scenario file
+│   ├── human.py    # (phase 5, not yet created) Prompts the player via CLI
+│   └── scripted.py # (phase 5, not yet created) Reads moves from the scenario file
 ├── data/
 │   ├── factions/   # JSON unit datasheets (one file per faction)
 │   └── scenarios/  # JSON scenario definitions

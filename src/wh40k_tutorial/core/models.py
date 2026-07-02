@@ -9,7 +9,7 @@ TODO: implement load_faction() to deserialize data/factions/*.json into these.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

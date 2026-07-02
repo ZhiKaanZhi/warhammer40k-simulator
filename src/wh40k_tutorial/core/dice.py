@@ -15,7 +15,7 @@ All randomness in the project goes through this module. Do not import
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 # A reroll policy describes which dice may be re-rolled before they're scored.
@@ -48,7 +48,11 @@ class RollResult:
         Natural 1s always fail and natural 6s always succeed in 40k, regardless
         of modifiers. This is the "critical" rule from the core rulebook.
         """
-        return sum(1 for r, raw in zip(self.rolls, self.raw_rolls) if _passes(raw, r, self.target))
+        return sum(
+            1
+            for r, raw in zip(self.rolls, self.raw_rolls, strict=True)
+            if _passes(raw, r, self.target)
+        )
 
     @property
     def critical_hits(self) -> int:
@@ -57,7 +61,11 @@ class RollResult:
 
     def passing_indices(self) -> list[int]:
         """Indices of the dice that succeeded — useful for narration."""
-        return [i for i, (raw, r) in enumerate(zip(self.raw_rolls, self.rolls)) if _passes(raw, r, self.target)]
+        return [
+            i
+            for i, (raw, r) in enumerate(zip(self.raw_rolls, self.rolls, strict=True))
+            if _passes(raw, r, self.target)
+        ]
 
 
 def _passes(raw: int, modified: int, target: int) -> bool:

@@ -11,7 +11,7 @@ raw dice faces and the facts that drove every target number, so the narrator
 can explain each roll without re-deriving any rules (ADR 0001).
 
 Phase-3 scope: no weapon keywords. The step records already carry the
-generic hand-off fields the phase-4 hook framework will fill (e.g.
+generic hand-off fields the keyword-hook framework (build phase 7) will fill (e.g.
 ``HitStep.auto_wounds``), defaulting to "no ability" values so a keywordless
 weapon flows through unchanged (ADR 0002).
 
@@ -51,7 +51,7 @@ class HitStep:
     roll: RollResult
     hits: int
     critical_hits: int  # natural 6s — the trigger for Sustained/Lethal/Dev Wounds
-    # Carry field for phase-4 abilities (Lethal Hits): hits that skip the
+    # Carry field for phase-7 abilities (Lethal Hits): hits that skip the
     # wound roll and count directly as wounds. Saves still apply to them.
     auto_wounds: int = 0
 
@@ -210,7 +210,7 @@ def _roll_hits(attack: AttackStep, rng: random.Random) -> HitStep:
 
 
 def _roll_wounds(hit: HitStep, strength: int, toughness: int, rng: random.Random) -> WoundStep:
-    # Normal hits roll to wound; carried auto-wounds (phase 4, Lethal Hits)
+    # Normal hits roll to wound; carried auto-wounds (phase 7, Lethal Hits)
     # are added on top without a roll — the step never needs to know which
     # ability sent them (ADR 0002).
     normal_hits = hit.hits - hit.auto_wounds

@@ -6,13 +6,14 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**Early scaffold.** The dice engine is implemented and tested; everything else is wired-up stubs with a clear build plan. See `CLAUDE.md` for the architecture and `CLAUDE.md`'s "Build order" section for what to implement next.
+**Engine core complete (build phases 1–3).** Dice primitives, the validated faction loader, and the full shooting pipeline are implemented and heavily tested. There is no playable scenario yet — the scenario runner and narrator (phases 5–6) come next; run `wh40k demo` for a static preview of the interface. See `CLAUDE.md` for the architecture and build order.
 
 ## Quick start
 
 ```bash
 pip install -e ".[dev]"
 pytest                       # all tests should pass
+wh40k demo                   # static preview of the tutorial interface
 wh40k --help                 # CLI help
 ```
 

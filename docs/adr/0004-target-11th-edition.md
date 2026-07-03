@@ -10,6 +10,6 @@ The scaffold was written against 10th edition. **11th edition released in June 2
 
 ## Consequences
 
-- The one material rules change is **Devastating Wounds**: 11th reverted it to **mortal wounds** (bypass saves *and* spill over between models), so its hook is a separate mortal-wound track, not the `no_save_wounds` bucket from end-of-10th. It is a Phase-4 ability, so Phase 3 is unaffected. See ADR 0002 and `docs/design/shooting-pipeline.md`.
+- The one material rules change is **Devastating Wounds**: 11th reverted it to **mortal wounds** (bypass saves *and* spill over between models), so its hook is a separate mortal-wound track, not the `no_save_wounds` bucket from end-of-10th. It is a phase-7 ability (keyword hooks), so phase 3 is unaffected. See ADR 0002 and `docs/design/shooting-pipeline.md`.
 - **Sourcing caveat:** Wahapedia has not yet updated to 11th (still 10th as of mid-2026). The authoritative 11th source is the official Warhammer Community **Core Rules PDF**; Wahapedia stays useful as a 10th baseline for the many unchanged mechanics, but anything edition-sensitive must be confirmed against the 11th PDF.
 - Three details still need a one-time read of the 11th Core Rules PDF (the researcher hit JS/403 walls): per-model variable Attacks, exact Devastating Wounds wording/spillover, and confirming there is no critical-save rule despite the advertised "Save Groups."

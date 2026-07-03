@@ -6,7 +6,7 @@ The goal is **learning**, not rules-accurate simulation. We narrate every dice r
 
 ## Status
 
-Early scaffold. The dice module is implemented; everything else is a typed stub with `TODO:` markers describing what to build next. See "Build order" below.
+Build phases 1–3 are implemented and tested: dice primitives, the domain model with its validating JSON loader, and the full shooting pipeline. The UI shell, scenario runner, and narrator are next — see "Build order" below.
 
 ## Tech stack
 
@@ -40,8 +40,8 @@ wh40k play 01_first_shots
 src/wh40k_tutorial/
 ├── core/           # Pure domain logic, no I/O
 │   ├── dice.py     # ✅ Implemented. Dice primitives. Heavily tested.
-│   ├── models.py   # Unit, Weapon, Model dataclasses
-│   └── combat.py   # The hit → wound → save → damage pipeline
+│   ├── models.py   # ✅ Implemented. Datasheet dataclasses + validating JSON loader.
+│   └── combat.py   # ✅ Implemented. The hit → wound → save → damage pipeline.
 ├── strategies/     # How a side picks its actions each turn
 │   ├── base.py     # Strategy protocol — extension point for AI
 │   ├── human.py    # (phase 5, not yet created) Prompts the player via CLI
@@ -71,14 +71,15 @@ A `Strategy` is anything that, given the current game state, returns the next ac
 Each phase is independently shippable. Don't move on until the previous one has tests and works end-to-end.
 
 1. **Dice primitives** ✅ done
-2. **Domain model** — `Unit`, `Weapon`, `Model` dataclasses; JSON loader for `data/factions/*.json`
-3. **Shooting pipeline** — implement `combat.resolve_shooting(attacker, target, weapon)` returning a structured result that the narrator can describe step by step
+2. **Domain model** ✅ done — datasheet dataclasses plus the validating JSON loader for `data/factions/*.json`
+3. **Shooting pipeline** ✅ done — `combat.resolve_shooting(...)` returns the structured, step-by-step record the narrator will format (ADR 0001)
 4. **Rich UI shell** — a static three-panel layout (battlefield grid, action log, rules panel). Hard-code one scene first; wire it to live state second.
 5. **Scenario runner** — load a scenario JSON, run alternating turns, route decisions through `Strategy`. Tutorial scenarios use `HumanStrategy` for the player and `ScriptedStrategy` for the opponent.
 6. **Narrator** — for each dice roll, print the rule that determined it. Inline by default; deeper "why?" expansion available on demand.
-7. **More scenarios + factions** — once one scenario works end-to-end, add the rest. This is data work, not code work.
+7. **Keyword hooks** — the per-step ability framework from ADR 0002, then the first weapon keywords the next scenarios need (e.g. Sustained Hits, Lethal Hits). Until this phase, keywords load and validate but stay inert.
+8. **More scenarios + factions** — once one scenario works end-to-end, add the rest. This is data work, not code work.
 
-Only *after* phase 7 do we consider the heuristic AI opponent. Don't be tempted earlier — `ScriptedStrategy` is enough for tutorials and forces the engine to stay clean.
+Only *after* phase 8 do we consider the heuristic AI opponent. Don't be tempted earlier — `ScriptedStrategy` is enough for tutorials and forces the engine to stay clean.
 
 ## Code conventions
 

@@ -76,7 +76,7 @@ class FactionDataError(ValueError):
 
 # Canonical weapon keywords (see `.claude/skills/add-unit/SKILL.md`).
 # The loader accepts any keyword listed here even if the engine doesn't
-# implement it yet — unimplemented keywords are inert until the phase-4
+# implement it yet — unimplemented keywords are inert until the phase-7
 # hook framework lands. Unknown spellings are rejected as probable typos.
 _EXACT_KEYWORDS = frozenset(
     {"assault", "heavy", "lethal_hits", "devastating_wounds", "twin_linked", "blast", "torrent"}
@@ -225,7 +225,7 @@ def load_faction(path: str | Path) -> dict[str, UnitDatasheet]:
     `ValueError`) naming the faction/unit/weapon on any schema violation.
     Keywords are checked against the canonical list purely as a typo guard;
     the engine is NOT required to implement them — unimplemented keywords are
-    inert until the phase-4 hook framework lands.
+    inert until the phase-7 hook framework lands.
     """
     file = Path(path)
     try:

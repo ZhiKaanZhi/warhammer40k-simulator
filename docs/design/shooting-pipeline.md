@@ -129,7 +129,7 @@ normal damage, no spillover" → **11th reverted to mortal wounds.** Since the p
 - so this is **not** the `no_save_wounds` save-step bucket (that was the end-of-10th shape) — it needs its own
   mortal-wound resolution path alongside the normal save/damage steps.
 
-Devastating Wounds is a **Phase-4** ability, so it does **not block Phase 3**. 🔎 Confirm the exact 11th wording
+Devastating Wounds is a **phase-7** ability (keyword hooks; renumbered from "phase 4" when the build order gained explicit UI/runner/narrator phases), so it does **not block Phase 3**. 🔎 Confirm the exact 11th wording
 and the mortal-wound spillover/allocation order against the Core Rules PDF before implementing it.
 
 ### Sources
@@ -143,9 +143,9 @@ and the mortal-wound spillover/allocation order against the Core Rules PDF befor
 
 1. ✅ **Edition decided: 11th** (2026-06-30, [ADR 0004](../adr/0004-target-11th-edition.md)). Core math is
    unchanged, so the dice module and this design stand; the only affected ability is Devastating Wounds
-   (Phase 4, above).
+   (phase 7, above).
 2. **Clear the three 🔎 PDF items** against the 11th Core Rules PDF before coding the affected parts: per-model
-   variable Attacks (#3, Phase 3), Devastating Wounds wording + mortal-wound spillover (#9, Phase 4), and confirm
+   variable Attacks (#3, Phase 3), Devastating Wounds wording + mortal-wound spillover (#9, phase 7), and confirm
    there's no critical-save rule despite the advertised "Save Groups" (#8).
 3. **Start Phase 3:** implement `resolve_shooting` with **no keywords**, threading `rng`, proving the record →
    narrator loop. Per-model variable Attacks (#3) is the only finding that touches Phase 3.

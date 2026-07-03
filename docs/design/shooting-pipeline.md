@@ -101,20 +101,21 @@ unchanged; the procedural changes are in charges, objectives, terrain, and battl
 Wahapedia still hosts only 10th, so it remains authoritative for the unchanged baseline but NOT for current 11th
 text. **The project now targets 11th edition (decided 2026-06-30 — see [ADR 0004](../adr/0004-target-11th-edition.md)).**
 
-Legend: ✅ confirmed & matches design · ⚠️ changed/needs design update · 🔎 verify in the 11th Core Rules PDF before coding.
+Legend: ✅ confirmed & matches design · ⚠️ changed/needs design update. All three former 🔎 items were resolved
+against the official 11th Core Rules PDF on **2026-07-03** (see *Primary-source verification* below).
 
 | Item | Result | Design impact |
 |---|---|---|
 | Sustained + Lethal on one crit | ✅ both fire off the same unmodified 6; Sustained's *extra* hits are **not** crits (only the natural 6 auto-wounds) | Confirms "read immutable `critical_hits`" (ADR 0002); Sustained adds *normal* hits. |
 | Lethal Hits | ✅ auto-wounds (skips wound roll); **saves still apply** | Matches the `auto_wounds` bucket. |
-| Variable Attacks | 🔎 rolled **per model** (each model rolls its own), not once for the pool — 10th-confirmed, 11th unverified | `AttackStep` must record per-model rolls, not one roll. **Touches Phase 3.** |
+| Variable Attacks | ✅ **per weapon/model** at the Core Rules level: attack dice are gathered weapon by weapon (04.03), and the re-roll rules treat the roll that determines a weapon's attack count as belonging to that one weapon. The dedicated *Random Characteristics* entry lives in the Rules Commentary, **which 11th has not published yet** (checked 2026-07-03) — re-check its exact wording when it appears | When variable attacks are implemented, `AttackStep` must record one roll per model. Shipped phase-3 code deliberately defers `DiceExpr` attacks (loader rejects them), so **no code change today**. |
 | Damage no-spillover | ✅ excess on a slain model is lost; one-at-a-time — **but mortal wounds are the exception (they spill over)** | Matches `wasted`. Mortal-wound path needs a *separate, spilling* allocation. |
 | Modifier cap | ✅ ±1 net on hit/wound. Saves: **+1 improvement cap only**, no symmetric −1 (worsening is AP, uncapped) | Clamp save *improvements* to +1; never clamp AP. |
 | Re-rolls | ✅ once only; "re-roll failed" ⊃ "re-roll 1s" | Confirms "most generous" combination (ADR 0002). |
 | AP | ✅ modifies save, uncapped, ignores invuln | Confirms ADR 0003. |
-| No critical-save rule | ✅ **confirmed: no "unmodified 6 always saves"**; unmod 1 always fails; 7+ unsavable | Confirms ADR 0003's core premise. 🔎 11th advertises "Save Groups" — appears procedural, not an auto-6; confirm in PDF. |
+| No critical-save rule | ✅ **confirmed at the primary source, visually** (save table, 05.04): an unmodified 1 always fails and there is no critical-save row; a save succeeds only via the invulnerable value (raw die, never AP-modified) or the AP-modified armour value | ADR 0003 fully confirmed. "Save Groups" turned out to be **allocation groups** (05.03) — pure allocation procedure, see below; zero v1 impact. |
 | Anti-X | ✅ unmod wound of X+ counts as a Critical Wound vs the keyword; does **not** itself bypass saves | Confirms deferred Anti-X note; needs configurable crit threshold in `core.dice`. |
-| **Devastating Wounds** | ⚠️ **11th = MORTAL WOUNDS** (reverted from end-of-10th "no saves of any kind"). 🔎 confirm wording + spillover in PDF | **Material change — see below.** |
+| **Devastating Wounds** | ✅ **confirmed (24.10): mortal wounds.** A critical wound ends that attack's sequence and the target suffers mortal wounds equal to the weapon's Damage, applied *after* the volley's normal damage is resolved | Matches the committed design — see below for the confirmed allocation semantics. |
 
 ### The one material change: Devastating Wounds
 
@@ -122,30 +123,68 @@ History: 10th launch = mortal wounds → autumn-2023 dataslate (what Wahapedia s
 normal damage, no spillover" → **11th reverted to mortal wounds.** Since the project now targets 11th (ADR 0004),
 **Devastating Wounds = mortal wounds** is the committed behavior:
 
-- a critical wound (unmodified 6, or the Anti-X threshold) is diverted at the wound step into a **separate
-  mortal-wound track** that bypasses saves entirely;
-- mortal wounds are allocated one at a time and **spill over** between models in the unit (unlike normal damage,
-  whose excess on a slain model is wasted), with Feel No Pain still applying;
-- so this is **not** the `no_save_wounds` save-step bucket (that was the end-of-10th shape) — it needs its own
-  mortal-wound resolution path alongside the normal save/damage steps.
+- **Confirmed (24.10):** a critical wound (unmodified 6, or the Anti-X threshold) ends the attack sequence for
+  that attack — no save, no normal damage for it — and instead the target *unit* suffers mortal wounds equal to
+  the weapon's Damage characteristic, inflicted **after** the normal damage of those attacks has been resolved.
+- **Confirmed mortal-wound allocation (06.02):** mortal wounds resolve **one at a time as single-wound packets**.
+  Each packet picks a model by a fixed priority (an already-wounded non-character first, then any non-character,
+  then a wounded character, then any character) and removes exactly **1 wound**; the loop keeps walking across
+  models until every mortal wound is inflicted or the unit is destroyed, and any excess dies with the unit. So
+  the familiar "mortals spill over" is really *per-wound allocation that naturally crosses models* — there are no
+  Damage-sized chunks to carry. Feel No Pain (24.12) rolls per wound lost, so it applies to each mortal wound.
+- Unchanged conclusion: this is **not** the `no_save_wounds` save-step bucket (that was the end-of-10th shape) —
+  it needs its own mortal-wound resolution path alongside the normal save/damage steps.
 
-Devastating Wounds is a **phase-7** ability (keyword hooks; renumbered from "phase 4" when the build order gained explicit UI/runner/narrator phases), so it does **not block Phase 3**. 🔎 Confirm the exact 11th wording
-and the mortal-wound spillover/allocation order against the Core Rules PDF before implementing it.
+Two phase-7 design notes picked up from the same read: **Lethal Hits (24.23) is now a per-attack *choice*** — the
+attacker may decline the auto-wound so the attack can still roll for a critical wound and trigger Devastating
+Wounds (a fine v1 default is "always accept", but the hook design should leave room for the choice). And
+**Sustained Hits (24.36)** is confirmed as X *additional plain hits* on a critical hit, alongside the explicit
+sidebar that critical hits still count as hits — exactly the immutable-`critical_hits` reading ADR 0002 assumed.
+
+Devastating Wounds is a **phase-7** ability (keyword hooks; renumbered from "phase 4" when the build order gained
+explicit UI/runner/narrator phases), so it never blocked Phase 3 — and as of 2026-07-03 nothing about it is
+unverified.
+
+### Primary-source verification (2026-07-03)
+
+The official, free **11th-edition Core Rules PDF** (published 2026-06-01, 88 pages) was retrieved directly from
+Games Workshop's asset host and read — resolving the three items that previously rested on secondary sources:
+
+- **File:** `https://assets.warhammer-community.com/eng_01-06_warhammer40k_new40k_core_rules-was6fbu1ix-hfewhmxyiy.pdf`
+  (the downloads page is a JS app whose visible search API serves a stale index; the working retrieval recipe is
+  recorded in `.claude/agents/rules-researcher.md`).
+- The hit/wound/save tables print their numerals as graphics, so those pages were **read visually**, confirming:
+  hit and wound rolls both fail on an unmodified 1 and are critical on an unmodified 6; the wound chart matches
+  `core.dice.wound_target` row for row; the save table has **no** critical-save row.
+- **Allocation groups (05.03–05.04)** — the "Save Groups" from preview coverage: the defender splits the unit into
+  groups (each character alone; everyone else grouped by identical Wounds/save/invulnerable values), declares an
+  order under wounded-first / characters-last constraints, then all save dice are rolled and resolved lowest to
+  highest against the current group. Damage: the picked model loses Damage-many wounds, is destroyed at zero or
+  below (surplus on that model simply gone), and attacks left over when the unit dies are lost — confirming the
+  `wasted` overkill semantics. For v1's uniform, character-free units there is exactly **one** group, so the whole
+  procedure collapses to our pipeline; it becomes relevant only if mixed-save units or attached characters arrive.
+- The core document's ► cross-references (e.g. *Random Characteristics*) point at GW's separate **Rules
+  Commentary**, which has **no 11th-edition release yet** as of 2026-07-03 — the one residual to re-check when it
+  publishes.
 
 ### Sources
 
+- ✅ **Official 11th Core Rules PDF** (2026-06-01, 88 pp) — primary source for every ✅ above; URL and retrieval
+  recipe as noted in *Primary-source verification*.
 - Warhammer Community — new-edition reveal (AdeptiCon 2026) & "Download the free Core Rules now."
-- Warhammer Community — "Weapons Rules Are Fun and Flexible" (11th; confirms Dev Wounds = mortal wounds, crit thresholds, Anti-X).
+- Warhammer Community — "Weapons Rules Are Fun and Flexible" (11th; secondary corroboration for Dev Wounds, crit thresholds, Anti-X).
 - Wargamer — 11th-edition abilities / full guide (secondary). Wahapedia 10th + datacard.app (10th baseline).
-- ⚠️ Researcher could not read the 11th Core Rules PDF (JS/403), so 🔎 items rest on secondary sources and need a one-time PDF check.
 
 ## Next steps
 
 1. ✅ **Edition decided: 11th** (2026-06-30, [ADR 0004](../adr/0004-target-11th-edition.md)). Core math is
    unchanged, so the dice module and this design stand; the only affected ability is Devastating Wounds
    (phase 7, above).
-2. **Clear the three 🔎 PDF items** against the 11th Core Rules PDF before coding the affected parts: per-model
-   variable Attacks (#3, Phase 3), Devastating Wounds wording + mortal-wound spillover (#9, phase 7), and confirm
-   there's no critical-save rule despite the advertised "Save Groups" (#8).
-3. **Start Phase 3:** implement `resolve_shooting` with **no keywords**, threading `rng`, proving the record →
-   narrator loop. Per-model variable Attacks (#3) is the only finding that touches Phase 3.
+2. ✅ **The three PDF items are cleared** (2026-07-03) against the official 11th Core Rules PDF: per-model
+   variable Attacks (#3), Devastating Wounds wording + mortal-wound allocation (#9), and no critical-save rule /
+   "Save Groups" = allocation groups (#8). **Phase 7 (keyword hooks) is no longer blocked on rules verification.**
+3. ✅ **Phase 3 shipped** (PR #5): keyword-free `resolve_shooting` with `rng` threading, record → report proven.
+   Variable attacks were deliberately deferred there, so finding #3 changes no shipped code — it binds whoever
+   implements `DiceExpr` attacks later (one roll per model, recorded per model).
+4. **One residual, non-blocking:** re-check the *Random Characteristics* wording when GW publishes the
+   11th-edition Rules Commentary (not out as of 2026-07-03).

@@ -23,8 +23,13 @@ from rich.layout import Layout
 from rich.panel import Panel
 from rich.text import Text
 
-GRID_WIDTH = 12
-GRID_HEIGHT = 8
+from wh40k_tutorial.core.scenario import BATTLEFIELD_HEIGHT, BATTLEFIELD_WIDTH
+
+# Kept under the names the rest of the ui package (and its tests) use; the
+# single source of truth is core/scenario.py, which validates positions
+# against the same dimensions the grid is drawn with.
+GRID_WIDTH = BATTLEFIELD_WIDTH
+GRID_HEIGHT = BATTLEFIELD_HEIGHT
 
 
 @dataclass(frozen=True)

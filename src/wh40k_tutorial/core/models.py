@@ -65,6 +65,9 @@ class UnitDatasheet:
     profile: Profile
     weapons: tuple[Weapon, ...]
     default_model_count: int
+    min_model_count: int = 1
+    # None = uncapped (hand-built test sheets); the JSON loader always sets it.
+    max_model_count: int | None = None
     default_loadout: tuple[str, ...] = ()  # weapon keys every model fires by default
     abilities: tuple[str, ...] = ()  # v1: just names. v2: structured ability objects.
     notes: str = ""
@@ -201,6 +204,8 @@ def _parse_unit(faction_key: str, unit_key: str, data: dict) -> UnitDatasheet:
             for w_key, w_data in weapons_data.items()
         ),
         default_model_count=default,
+        min_model_count=lo,
+        max_model_count=hi,
         default_loadout=_parse_loadout(data, set(weapons_data), ctx),
         abilities=tuple(str(a) for a in data.get("abilities", [])),
         notes=str(data.get("notes", "")),

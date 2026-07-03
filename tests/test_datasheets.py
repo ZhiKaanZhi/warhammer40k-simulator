@@ -97,6 +97,7 @@ class TestPackagedFactions:
         assert (rifle.strength, rifle.ap, rifle.damage) == (4, 1, 1)
         assert rifle.keywords == ("assault",)
         assert squad.default_model_count == 5
+        assert (squad.min_model_count, squad.max_model_count) == (5, 10)
         assert squad.default_loadout == ("bolt_rifle",)
 
     def test_termagants_round_trip_exactly(self) -> None:
@@ -108,6 +109,7 @@ class TestPackagedFactions:
         assert (borer.range, borer.attacks, borer.skill) == (18, 1, 4)
         assert (borer.strength, borer.ap, borer.damage) == (4, 0, 1)
         assert swarm.default_model_count == 10
+        assert (swarm.min_model_count, swarm.max_model_count) == (10, 20)
         melee = {w.name: w for w in swarm.weapons}["claws_and_teeth"]
         assert melee.type == "melee"
         assert melee.range == 0

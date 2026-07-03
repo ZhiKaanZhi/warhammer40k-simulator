@@ -1,13 +1,15 @@
 """Click-based CLI entry point.
 
-Currently a stub. The intended commands:
+Intended commands:
 
     wh40k                       # interactive menu: pick a scenario, play it
     wh40k list                  # list available scenarios
     wh40k play <scenario-id>    # run a specific scenario
+    wh40k demo                  # static preview of the three-panel UI (phase 4)
     wh40k version               # print version
 
-TODO: implement once the engine and scenario runner exist (phase 5).
+`demo` and `version` work today. TODO: `list` and `play` land with the
+scenario runner (build phase 5).
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from __future__ import annotations
 import click
 
 from wh40k_tutorial import __version__
+from wh40k_tutorial.ui.demo import run_demo
 
 
 @click.group(invoke_without_command=True)
@@ -31,6 +34,12 @@ def main(ctx: click.Context) -> None:
 def version() -> None:
     """Print the package version."""
     click.echo(__version__)
+
+
+@main.command()
+def demo() -> None:
+    """Show a static preview of the three-panel tutorial interface."""
+    run_demo()
 
 
 @main.command(name="list")

@@ -19,19 +19,85 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from wh40k_tutorial.core.models import UnitDatasheet, Weapon
+from wh40k_tutorial.core.scenario import opposing_side
+
+
+@dataclass(frozen=True)
+class UnitSnapshot:
+    """One unit's battlefield state, frozen at decision time.
+
+    The engine builds these from its mutable runtime state; strategies only
+    ever see (and can never corrupt) an immutable snapshot.
+    """
+
+    unit_id: str
+    side: str  # "attacker" or "defender"
+    datasheet: UnitDatasheet
+    position: tuple[int, int]
+    models: int              # models still standing
+    wounds_on_lead: int      # wounds left on the front model; 0 once destroyed
+    has_shot: bool = False   # already activated in the current shooting phase
+
+    @property
+    def destroyed(self) -> bool:
+        return self.models == 0
+
+    @property
+    def ranged_weapons(self) -> tuple[Weapon, ...]:
+        """The weapons this unit may shoot with, default loadout first.
+
+        v1 loadouts cover the whole unit, so the shootable weapons are the
+        ranged entries of ``default_loadout`` — or every ranged weapon if the
+        datasheet declares no loadout.
+        """
+        by_key = {w.name: w for w in self.datasheet.weapons}
+        chosen = [
+            by_key[key]
+            for key in self.datasheet.default_loadout
+            if by_key[key].type == "ranged"
+        ]
+        if chosen:
+            return tuple(chosen)
+        return tuple(w for w in self.datasheet.weapons if w.type == "ranged")
+
 
 @dataclass(frozen=True)
 class GameState:
-    """Snapshot of the battlefield at decision time.
-
-    TODO: flesh out as we build phase 2. For now this is a placeholder so
-    the Strategy protocol's signature is stable.
-    """
+    """Snapshot of the battlefield at decision time."""
 
     turn: int
     phase: str
     active_side: str  # "attacker" or "defender"
-    # TODO: units on the board, positions, wounds remaining, etc.
+    units: tuple[UnitSnapshot, ...] = ()
+
+    def unit(self, unit_id: str) -> UnitSnapshot:
+        for u in self.units:
+            if u.unit_id == unit_id:
+                return u
+        raise KeyError(f"no unit {unit_id!r} on the battlefield")
+
+    def units_on(self, side: str) -> tuple[UnitSnapshot, ...]:
+        return tuple(u for u in self.units if u.side == side)
+
+    def eligible_shooters(self) -> tuple[UnitSnapshot, ...]:
+        """Active-side units that can still shoot this phase.
+
+        Alive, armed with at least one ranged weapon, and not yet activated.
+        This is the single definition of shooting eligibility — the engine's
+        turn loop and both strategies rely on it agreeing with itself.
+        """
+        return tuple(
+            u
+            for u in self.units_on(self.active_side)
+            if not u.destroyed and not u.has_shot and u.ranged_weapons
+        )
+
+    def surviving_enemies(self) -> tuple[UnitSnapshot, ...]:
+        """Units of the non-active side that are still on the table."""
+        return tuple(
+            u for u in self.units_on(opposing_side(self.active_side)) if not u.destroyed
+        )
 
 
 @dataclass(frozen=True)

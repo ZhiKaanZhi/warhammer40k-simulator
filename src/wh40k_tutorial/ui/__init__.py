@@ -5,7 +5,8 @@ Three regions (see `shell.py`):
 - action log, scrolling, showing every dice roll and what it meant
 - rules panel, sidebar, contextual to whatever just happened
 
-Build-phase-4 status: the static shell and a hard-coded demo scene are
-implemented (`wh40k demo`). Wiring the panels to live game state happens
-with the scenario runner (build phase 5).
+The static shell (`shell.py`, `wh40k demo`) landed in build phase 4;
+`live.py` (build phase 5) drives the same builders from live game state and
+formats each volley's plain step-by-step account. The rules panel shows a
+placeholder until the narrator (build phase 6) supplies real explanations.
 """

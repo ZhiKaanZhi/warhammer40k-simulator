@@ -6,7 +6,7 @@ The goal is **learning**, not rules-accurate simulation. We narrate every dice r
 
 ## Status
 
-Build phases 1–3 are implemented and tested: dice primitives, the domain model with its validating JSON loader, and the full shooting pipeline. The UI shell, scenario runner, and narrator are next — see "Build order" below.
+Build phases 1–5 are implemented and tested: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline, the Rich UI shell, and the scenario runner — `wh40k play 01_first_shots` runs the first tutorial end to end. The narrator (contextual rule explanations) is next — see "Build order" below.
 
 ## Tech stack
 
@@ -30,7 +30,8 @@ wh40k
 # Run the tests
 pytest
 
-# Run a specific scenario directly
+# List scenarios, then play one (add --seed N for reproducible dice)
+wh40k list
 wh40k play 01_first_shots
 ```
 
@@ -38,19 +39,24 @@ wh40k play 01_first_shots
 
 ```
 src/wh40k_tutorial/
-├── core/           # Pure domain logic, no I/O
+├── core/           # Pure domain logic (loaders read JSON, nothing else does I/O)
 │   ├── dice.py     # ✅ Implemented. Dice primitives. Heavily tested.
 │   ├── models.py   # ✅ Implemented. Datasheet dataclasses + validating JSON loader.
-│   └── combat.py   # ✅ Implemented. The hit → wound → save → damage pipeline.
+│   ├── combat.py   # ✅ Implemented. The hit → wound → save → damage pipeline.
+│   └── scenario.py # ✅ Implemented. Scenario dataclasses + validating JSON loader.
+├── engine.py       # ✅ Implemented. Runtime battle state + the turn loop (ADR 0005).
 ├── strategies/     # How a side picks its actions each turn
-│   ├── base.py     # Strategy protocol — extension point for AI
-│   ├── human.py    # (phase 5, not yet created) Prompts the player via CLI
-│   └── scripted.py # (phase 5, not yet created) Reads moves from the scenario file
+│   ├── base.py     # ✅ Strategy protocol + frozen GameState snapshots — extension point for AI
+│   ├── human.py    # ✅ Implemented. Prompts the player via Click menus.
+│   └── scripted.py # ✅ Implemented. Replays the scenario's scripted actions.
 ├── data/
 │   ├── factions/   # JSON unit datasheets (one file per faction)
 │   └── scenarios/  # JSON scenario definitions
 ├── ui/             # Rich-based TUI: battlefield grid, log, rules panel
-└── cli.py          # Click entry point
+│   ├── shell.py    # ✅ Implemented. Pure three-panel builders.
+│   ├── live.py     # ✅ Implemented. Live-state presenters + per-volley report lines.
+│   └── demo.py     # ✅ Implemented. Static scene behind `wh40k demo`.
+└── cli.py          # ✅ Implemented. Click entry point: list / play / demo / version.
 tests/              # Mirrors src/ layout
 ```
 
@@ -73,8 +79,8 @@ Each phase is independently shippable. Don't move on until the previous one has 
 1. **Dice primitives** ✅ done
 2. **Domain model** ✅ done — datasheet dataclasses plus the validating JSON loader for `data/factions/*.json`
 3. **Shooting pipeline** ✅ done — `combat.resolve_shooting(...)` returns the structured, step-by-step record the narrator will format (ADR 0001)
-4. **Rich UI shell** — a static three-panel layout (battlefield grid, action log, rules panel). Hard-code one scene first; wire it to live state second.
-5. **Scenario runner** — load a scenario JSON, run alternating turns, route decisions through `Strategy`. Tutorial scenarios use `HumanStrategy` for the player and `ScriptedStrategy` for the opponent.
+4. **Rich UI shell** ✅ done — the static three-panel layout (battlefield grid, action log, rules panel) behind `wh40k demo`
+5. **Scenario runner** ✅ done — validating scenario loader, runtime state + turn loop in `engine.py` (ADR 0005), `HumanStrategy` and `ScriptedStrategy` behind the protocol, panels wired to live state; `wh40k list` / `wh40k play` work end to end
 6. **Narrator** — for each dice roll, print the rule that determined it. Inline by default; deeper "why?" expansion available on demand.
 7. **Keyword hooks** — the per-step ability framework from ADR 0002, then the first weapon keywords the next scenarios need (e.g. Sustained Hits, Lethal Hits). Until this phase, keywords load and validate but stay inert.
 8. **More scenarios + factions** — once one scenario works end-to-end, add the rest. This is data work, not code work.

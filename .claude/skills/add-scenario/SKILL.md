@@ -48,7 +48,10 @@ Scenarios live at `src/wh40k_tutorial/data/scenarios/<NN>_<slug>.json`. Number t
     {
       "phase": "shooting",
       "active_side": "attacker",
-      "narrate_before": "Your Intercessors raise their bolt rifles..."
+      "narrate_before": "Your Intercessors raise their bolt rifles...",
+      "actions": [
+        { "attacker": "marines_1", "weapon": "bolt_rifle", "target": "termagants_1" }
+      ]
     }
   ],
   "outro": "Shown when the scenario ends. Recap what the player just learned. Point to the next scenario."
@@ -63,6 +66,7 @@ Field reference:
 - **sides.*.units[].datasheet** — must match a key in the faction's JSON file. If it doesn't exist, add it first using the `add-unit` skill.
 - **sides.*.units[].position** — `[x, y]` on the battlefield grid (currently 12 wide × 8 tall, 0-indexed from top-left).
 - **turns** — explicit list of turns. v1 only models the shooting phase, so most scenarios are one or two `"shooting"` entries.
+- **turns[].actions** — optional. The fixed shots `ScriptedStrategy` replays, in order, when the *non-player* side acts: `attacker` is a unit id on the active side, `weapon` a ranged-weapon key on its datasheet, `target` a unit id on the other side (the loader validates all three). Omit it on turns the player acts in — the human decides. A scripted side that runs out of actions while it still has eligible shooters fails loudly at runtime, on purpose: script every shot you expect it to take.
 - **narrate_before / outro** — write in our own words. Don't quote rulebooks.
 
 ## Workflow for adding a scenario
@@ -77,7 +81,7 @@ Field reference:
 
 5. **Validate:** run `wh40k play <id>` end-to-end at least once. Verify the dice rolls demonstrate the concept — if you're teaching AP and the saves all happen to pass, the lesson is invisible. Either accept that variance and add narration that calls it out, or rig the scenario so the lesson is reliable (e.g., enough attacks that the expected outcome is overwhelmingly likely).
 
-6. **Add a test.** `tests/scenarios/test_<id>.py` should at minimum load the scenario and assert it's structurally valid (units resolve, positions are on-grid, referenced datasheets exist).
+6. **Add a test.** Add a case to `tests/test_scenario.py` (see `TestPackagedScenarios`) that loads the scenario by id and asserts its key facts. The loader itself already guarantees the structure: referenced datasheets exist, model counts fit the datasheet's unit size, positions are on the 12x8 grid and don't collide, ids are unique, and any scripted `actions` are legal for the units on the board.
 
 ## Anti-patterns
 

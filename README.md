@@ -6,13 +6,15 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**Engine core complete (build phases 1–3).** Dice primitives, the validated faction loader, and the full shooting pipeline are implemented and heavily tested. There is no playable scenario yet — the scenario runner and narrator (phases 5–6) come next; run `wh40k demo` for a static preview of the interface. See `CLAUDE.md` for the architecture and build order.
+**First scenario playable (build phases 1–5).** Dice primitives, the validated faction and scenario loaders, the full shooting pipeline, the Rich interface, and the scenario runner are implemented and heavily tested — `wh40k play 01_first_shots` runs the first tutorial end to end, reporting every roll's plain facts step by step. The narrator (phase 6) adds the contextual rule *explanations* next. See `CLAUDE.md` for the architecture and build order.
 
 ## Quick start
 
 ```bash
 pip install -e ".[dev]"
 pytest                       # all tests should pass
+wh40k list                   # see the available tutorial scenarios
+wh40k play 01_first_shots    # play the first one (add --seed N for fixed dice)
 wh40k demo                   # static preview of the tutorial interface
 wh40k --help                 # CLI help
 ```

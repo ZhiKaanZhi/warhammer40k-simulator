@@ -21,7 +21,7 @@ A hit that skips the wound roll and counts directly as a wound. Granted by Letha
 _Avoid_: auto-hit (a different thing), lethal hit.
 
 **Mortal wound**:
-Damage that bypasses all saving throws (armour and invulnerable). Allocated one at a time and **spills over** between models in the unit — unlike normal damage, whose excess on a slain model is wasted. Feel No Pain still applies. In 11th edition this is the effect of **Devastating Wounds** on a critical wound. 🔎 Exact wording/allocation order pending the 11th Core Rules PDF.
+Damage that bypasses all saving throws (armour and invulnerable). Resolved **one at a time as single-wound packets**: each mortal wound picks a model (an already-wounded non-character first) and removes exactly 1 wound, walking across models until all are inflicted or the unit is destroyed — so it naturally crosses model boundaries, unlike normal damage, whose excess on a slain model is wasted. Excess mortal wounds die with the unit. Feel No Pain applies to each one. In 11th edition this is the effect of **Devastating Wounds** on a critical wound, inflicted *after* the volley's normal damage. (Confirmed against the 11th Core Rules PDF, 2026-07-03.)
 _Avoid_: no-save wound — that was the *end-of-10th* Devastating Wounds (normal damage, no spillover) and is not how 11th resolves.
 
 **Wasted damage (overkill)**:

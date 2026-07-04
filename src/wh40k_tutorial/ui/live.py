@@ -7,9 +7,9 @@ Two jobs, both pure formatting:
   straight from the record's facts (ADR 0001).
 
 The volley account states *what* happened at each step and the numbers that
-drove it — it does not explain the rules behind them. That contextual
-explanation (and the "why?" expansion) is the narrator, build phase 6, which
-will replace the placeholder rules panel below.
+drove it. The rules *behind* those numbers come from `narrator.py` (build
+phase 6): the CLI interleaves its inline explanations with the fact lines and
+feeds them to the rules panel here via ``render_live_shell``.
 """
 
 from __future__ import annotations
@@ -33,9 +33,9 @@ SIDE_STYLES = {"attacker": "bold blue", "defender": "bold green"}
 
 RULES_PLACEHOLDER_HEADING = "Rules panel"
 RULES_PLACEHOLDER_BODY = (
-    "The action log records the plain facts of every roll. Contextual "
-    "explanations of the rules behind them arrive with the narrator "
-    "(build phase 6)."
+    "The action log records the plain facts of every roll; the rule behind "
+    "each one appears here as the dice fall. After a volley you can also ask "
+    "for the deeper rule behind any step."
 )
 
 
@@ -55,12 +55,23 @@ def tokens_from_units(units: Sequence[UnitSnapshot]) -> tuple[UnitToken, ...]:
     )
 
 
-def render_live_shell(units: Sequence[UnitSnapshot], log_lines: Sequence[str]) -> Layout:
-    """The three-panel shell, driven by live state instead of the demo scene."""
+def render_live_shell(
+    units: Sequence[UnitSnapshot],
+    log_lines: Sequence[str],
+    *,
+    rules_heading: str = RULES_PLACEHOLDER_HEADING,
+    rules_body: str = RULES_PLACEHOLDER_BODY,
+) -> Layout:
+    """The three-panel shell, driven by live state instead of the demo scene.
+
+    ``rules_heading``/``rules_body`` let the caller fill the rules panel with
+    the narrator's explanations for the latest volley; the defaults show the
+    pre-battle placeholder.
+    """
     return build_shell(
         battlefield=render_battlefield(tokens_from_units(units)),
         action_log=render_action_log(log_lines),
-        rules=render_rules_panel(RULES_PLACEHOLDER_HEADING, RULES_PLACEHOLDER_BODY),
+        rules=render_rules_panel(rules_heading, rules_body),
     )
 
 

@@ -78,6 +78,49 @@ class TestPlay:
         assert "no scenario named '99_nope'" in result.output
         assert "01_first_shots" in result.output
 
+    # ------------------------------------------------------------------
+    # Phase 6: the narrator in the play loop
+    # ------------------------------------------------------------------
+
+    def test_every_fact_line_carries_its_rule(self) -> None:
+        result = CliRunner().invoke(
+            main, ["play", "01_first_shots", "--seed", str(SEED)], input="\n"
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+
+        # One inline rule per pipeline step, arrowed under its fact line.
+        assert out.count("↳") == 5
+        assert "the pool is 5 x 2 = 10 dice" in out
+        assert "Ballistic Skill, printed on the weapon profile" in out
+        assert "Strength 4 beats the target's Toughness 3" in out
+        assert "AP -1 is armour-piercing and worsens it to 6+" in out
+        assert "single wound apiece" in out
+
+        # The offer of a deeper rule, and the final rules panel filled in.
+        assert "Deeper rule?" in out
+        assert "The rules behind" in out  # panel heading (wraps in the column)
+
+    def test_why_prints_the_full_rule_and_bad_input_reprompts(self) -> None:
+        result = CliRunner().invoke(
+            main,
+            ["play", "01_first_shots", "--seed", str(SEED)],
+            input="banana\nwhy save?\n\n",
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+        assert "Pick one of: attacks/hit/wound/save/damage" in out
+        assert "SAVE — the full rule:" in out
+        assert "invulnerable save" in out
+        assert "no lucky-six rule" in out
+
+    def test_play_survives_end_of_input_at_the_why_prompt(self) -> None:
+        # No input at all: the why prompt hits end-of-input and the battle
+        # must still run to the outro instead of aborting.
+        result = CliRunner().invoke(main, ["play", "01_first_shots", "--seed", str(SEED)])
+        assert result.exit_code == 0, result.output
+        assert "Every shooting attack in 40k follows this exact sequence." in result.output
+
 
 class TestOtherCommands:
     def test_version(self) -> None:

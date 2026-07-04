@@ -8,11 +8,13 @@ Commands:
     wh40k demo                  # static preview of the three-panel UI
     wh40k version               # print the package version
 
-`play` runs the phase-5 scenario runner: the player's side is driven by
-`HumanStrategy` prompts, the opponent by `ScriptedStrategy`, and every volley
-is reported step by step straight from the `ShootingResult` record. Rule
-*explanations* (the contextual rules panel content and "why?" expansion)
-arrive with the narrator, build phase 6.
+`play` runs the scenario runner (phase 5) with the narrator (phase 6): the
+player's side is driven by `HumanStrategy` prompts, the opponent by
+`ScriptedStrategy`, and every volley is reported step by step straight from
+the `ShootingResult` record — each fact line followed by the rule that drove
+it. After a volley the player can ask for the deeper rule behind any step,
+and the rules panel of the final battlefield view carries the explanations
+for the last volley.
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ from wh40k_tutorial.core.scenario import (
     opposing_side,
 )
 from wh40k_tutorial.engine import BattleState, EngineError, VolleyEvent, run_scenario
+from wh40k_tutorial.narrator import StepNarration, narrate_volley
 from wh40k_tutorial.strategies.base import Strategy
 from wh40k_tutorial.strategies.human import HumanStrategy
 from wh40k_tutorial.strategies.scripted import (
@@ -42,9 +45,12 @@ from wh40k_tutorial.strategies.scripted import (
 from wh40k_tutorial.ui.demo import run_demo
 from wh40k_tutorial.ui.live import render_live_shell, volley_report_lines
 
-# Explicit render height for the shell so the battlefield (16 rows minimum)
-# and one full volley report always fit without the layout cropping the log.
+# Explicit render heights so the layout never crops silently: the base value
+# fits the battlefield (16 rows minimum) plus one full volley report; the
+# final frame is taller because its narrow rules panel carries the narrator's
+# five wrapped explanations for the last volley.
 _SHELL_HEIGHT = 32
+_FINAL_SHELL_HEIGHT = 46
 
 
 @click.group(invoke_without_command=True)
@@ -81,6 +87,35 @@ def list_scenarios() -> None:
                    f"(teaches {scenario.teaches.rstrip('.')})")
 
 
+def _why_loop(narrations: list[StepNarration]) -> None:
+    """Offer the deeper rule behind any step of the volley just shown.
+
+    Enter (or end-of-input, so piped runs never hang) continues the battle;
+    a step name — optionally prefixed with "why" — prints its full rule.
+    """
+    by_step = {n.step: n for n in narrations}
+    options = "/".join(n.step for n in narrations)
+    while True:
+        try:
+            raw = click.prompt(
+                f"Deeper rule? ({options} — Enter to continue)",
+                default="",
+                show_default=False,
+            )
+        except click.Abort:
+            click.echo("")
+            return
+        choice = raw.strip().lower().removeprefix("why").strip().rstrip("?")
+        if not choice:
+            return
+        narration = by_step.get(choice)
+        if narration is None:
+            click.echo(f"Pick one of: {options} — or press Enter to continue.")
+            continue
+        click.echo(f"\n{choice.upper()} — the full rule:")
+        click.echo(narration.expansion + "\n")
+
+
 @main.command()
 @click.argument("scenario_id")
 @click.option("--seed", type=int, default=None,
@@ -109,6 +144,7 @@ def play(scenario_id: str, seed: int | None) -> None:
     ), height=_SHELL_HEIGHT)
 
     last_volley: list[str] = []
+    last_narrations: list[StepNarration] = []
 
     def announce_turn(number: int, turn: ScenarioTurn) -> None:
         click.echo(f"\n— Turn {number}: {turn.phase} phase, the {turn.active_side} acts —")
@@ -117,9 +153,14 @@ def play(scenario_id: str, seed: int | None) -> None:
 
     def show_volley(event: VolleyEvent) -> None:
         last_volley[:] = volley_report_lines(event.result, turn=event.turn)
-        for line in last_volley:
-            click.echo(line)
+        last_narrations[:] = narrate_volley(event.result)
+        header, fact_lines = last_volley[0], last_volley[1:]
+        click.echo(header)
+        for fact, narration in zip(fact_lines, last_narrations, strict=True):
+            click.echo(fact)
+            click.echo(click.style(f"   ↳ {narration.inline}", dim=True))
         click.echo("")
+        _why_loop(last_narrations)
 
     try:
         final = run_scenario(
@@ -132,10 +173,20 @@ def play(scenario_id: str, seed: int | None) -> None:
     except (EngineError, ScriptExhaustedError) as exc:
         raise click.ClickException(str(exc)) from exc
 
-    console.print(render_live_shell(
-        final.snapshot().units,
-        last_volley or ("No shots were fired.",),
-    ), height=_SHELL_HEIGHT)
+    if last_narrations:
+        rules_heading = "The rules behind that volley"
+        rules_body = "\n\n".join(f"{n.step.upper()}: {n.inline}" for n in last_narrations)
+        console.print(render_live_shell(
+            final.snapshot().units,
+            last_volley,
+            rules_heading=rules_heading,
+            rules_body=rules_body,
+        ), height=_FINAL_SHELL_HEIGHT)
+    else:
+        console.print(render_live_shell(
+            final.snapshot().units,
+            ("No shots were fired.",),
+        ), height=_SHELL_HEIGHT)
     for side in SIDES:
         if final.side_wiped(side):
             click.echo(f"The {side}'s force has been wiped out.")

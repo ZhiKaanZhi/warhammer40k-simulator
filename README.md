@@ -6,7 +6,7 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**First scenario playable (build phases 1–5).** Dice primitives, the validated faction and scenario loaders, the full shooting pipeline, the Rich interface, and the scenario runner are implemented and heavily tested — `wh40k play 01_first_shots` runs the first tutorial end to end, reporting every roll's plain facts step by step. The narrator (phase 6) adds the contextual rule *explanations* next. See `CLAUDE.md` for the architecture and build order.
+**First scenario teaches, end to end (build phases 1–6).** Dice primitives, the validated faction and scenario loaders, the full shooting pipeline, the Rich interface, the scenario runner, and the narrator are implemented and heavily tested. `wh40k play 01_first_shots` now does what the project promises: every roll's facts are reported step by step with the rule that drove them right underneath, you can ask for the deeper rule behind any step after a volley, and the final battlefield view recaps the rules of the last volley in its side panel. Keyword abilities (phase 7) come next. See `CLAUDE.md` for the architecture and build order.
 
 ## Quick start
 

@@ -1,0 +1,50 @@
+{
+  "id": "03_piercing_armour",
+  "title": "Piercing Armour",
+  "teaches": "AP worsens the target's armour save \u2014 and an invulnerable save is the floor that AP can never push past.",
+  "intro": "Skitarii Rangers hold the line ahead: lightly built troops (Toughness 3) hiding behind a 4+ armour save and a strange 5+ invulnerable field. Your bolt rifles carry AP -1 \u2014 armour-piercing that worsens their armour save. Watch the SAVE line: armour bends to AP, but the invulnerable never does.",
+  "player_side": "attacker",
+  "sides": {
+    "attacker": {
+      "faction": "space_marines",
+      "units": [
+        {
+          "id": "marines_1",
+          "datasheet": "intercessor_squad",
+          "position": [
+            2,
+            4
+          ],
+          "models": 5
+        }
+      ]
+    },
+    "defender": {
+      "faction": "adeptus_mechanicus",
+      "units": [
+        {
+          "id": "rangers_1",
+          "datasheet": "skitarii_rangers",
+          "position": [
+            9,
+            4
+          ],
+          "models": 10
+        }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Open fire \u2014 then read the SAVE line closely. Their 4+ armour becomes 5+ under your AP -1, and their 5+ invulnerable sits right at that floor."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Fire again. Same math every time: AP moves the armour save; the invulnerable save never moves."
+    }
+  ],
+  "outro": "AP -1 pushed the Rangers' 4+ armour to 5+ \u2014 exactly level with their 5+ invulnerable, so the field gained them nothing this time. But that is the whole point of an invulnerable save: it is a floor. Bring AP -2 and the armour would need 6+ while the invulnerable still saves on 5+, and the defender always uses the better of the two. Ask 'why save' in any battle for the full rule."
+}

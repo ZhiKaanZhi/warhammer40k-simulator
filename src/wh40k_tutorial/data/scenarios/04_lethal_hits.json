@@ -1,0 +1,50 @@
+{
+  "id": "04_lethal_hits",
+  "title": "Lethal Hits",
+  "teaches": "a critical hit \u2014 a natural 6 to hit \u2014 can do more than hit: Lethal Hits skips the wound roll entirely, though the target still gets its saves.",
+  "player_side": "attacker",
+  "intro": "Your Necron Warriors raise their gauss flayers against a squad of Space Marines. These weapons carry LETHAL HITS: whenever a hit die lands a natural 6 \u2014 a critical hit \u2014 that attack wounds automatically, skipping the Strength-versus-Toughness roll. Against Toughness 4 Marines your Strength 4 beams would normally need 4+ to wound, so every critical is a coin-flip you don't have to make. Watch the HIT line for sixes, then see them reappear on the WOUND line as automatic wounds.",
+  "sides": {
+    "attacker": {
+      "faction": "necrons",
+      "units": [
+        {
+          "id": "warriors_1",
+          "datasheet": "necron_warriors",
+          "position": [
+            2,
+            4
+          ],
+          "models": 10
+        }
+      ]
+    },
+    "defender": {
+      "faction": "space_marines",
+      "units": [
+        {
+          "id": "marines_1",
+          "datasheet": "intercessor_squad",
+          "position": [
+            9,
+            4
+          ],
+          "models": 5
+        }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Fire the first volley. Any natural 6 to hit becomes an automatic wound \u2014 the WOUND line will show them added on top of the rolled wounds."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Fire again \u2014 and notice the Marines' 3+ armour still applies to every wound, automatic or not. Lethal Hits skips one roll, not all of them."
+    }
+  ],
+  "outro": "That is your first weapon ability. A natural 6 to hit is a critical hit, and Lethal Hits converts each one straight into a wound \u2014 no Strength-versus-Toughness roll. But an auto-wound is not an auto-kill: the Marines' 3+ armour saved as normal, because Lethal Hits skips exactly one step of the sequence. Other abilities feed on the same critical trigger \u2014 ask 'why hit' to read about them."
+}

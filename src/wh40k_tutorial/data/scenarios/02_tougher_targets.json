@@ -1,0 +1,59 @@
+{
+  "id": "02_tougher_targets",
+  "title": "Tougher Targets",
+  "teaches": "the wound roll comes from comparing Strength to Toughness: the same gun needs a higher roll against a tougher target.",
+  "intro": "Two Necron units advance on your Intercessors: a phalanx of Necron Warriors, and a smaller squad of elite Immortals in heavier bodies. Your bolt rifles are Strength 4. The Warriors are Toughness 4 \u2014 an even match. The Immortals are Toughness 5 \u2014 tougher than your shells. You have two volleys; fire one at each, and watch what happens to the wound roll.",
+  "player_side": "attacker",
+  "sides": {
+    "attacker": {
+      "faction": "space_marines",
+      "units": [
+        {
+          "id": "marines_1",
+          "datasheet": "intercessor_squad",
+          "position": [
+            2,
+            4
+          ],
+          "models": 5
+        }
+      ]
+    },
+    "defender": {
+      "faction": "necrons",
+      "units": [
+        {
+          "id": "warriors_1",
+          "datasheet": "necron_warriors",
+          "position": [
+            9,
+            2
+          ],
+          "models": 10
+        },
+        {
+          "id": "immortals_1",
+          "datasheet": "immortals",
+          "position": [
+            9,
+            6
+          ],
+          "models": 5
+        }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "First volley. Pick a target \u2014 and note the WOUND line when the dice land: Strength 4 into Toughness 4 needs 4+, but the same Strength 4 into the Immortals' Toughness 5 needs 5+."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Second volley. Now fire at the other unit and compare the two WOUND lines: same rifles, different Toughness, different target number."
+    }
+  ],
+  "outro": "That was the wound chart at work. Your rifles never changed \u2014 the targets did. Strength 4 against Toughness 4 is an even match (4+); against Toughness 5 your shells are outmatched (5+). The full chart runs from 2+ (Strength at least double Toughness) to 6+ (Strength half of Toughness or less) \u2014 ask 'why wound' during any battle to see it. You may also have noticed the Immortals' 3+ armour shrugging off more hits than the Warriors' 4+; saves are the next lesson."
+}

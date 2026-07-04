@@ -1,0 +1,52 @@
+{
+  "faction": "adeptus_mechanicus",
+  "display_name": "Adeptus Mechanicus",
+  "units": {
+    "skitarii_rangers": {
+      "display_name": "Skitarii Rangers",
+      "profile": {
+        "movement": 6,
+        "toughness": 3,
+        "save": 4,
+        "wounds": 1,
+        "leadership": 7,
+        "objective_control": 2,
+        "invulnerable_save": 5
+      },
+      "unit_size": {
+        "min": 10,
+        "max": 10,
+        "default": 10
+      },
+      "weapons": {
+        "galvanic_rifle": {
+          "display_name": "Galvanic Rifle",
+          "type": "ranged",
+          "range": 30,
+          "attacks": 2,
+          "skill": 4,
+          "strength": 4,
+          "ap": 0,
+          "damage": 1,
+          "keywords": []
+        },
+        "close_combat_weapon": {
+          "display_name": "Close Combat Weapon",
+          "type": "melee",
+          "range": 0,
+          "attacks": 1,
+          "skill": 4,
+          "strength": 3,
+          "ap": 0,
+          "damage": 1,
+          "keywords": []
+        }
+      },
+      "default_loadout": {
+        "galvanic_rifle": "all"
+      },
+      "abilities": [],
+      "notes": "The cog-priests' skirmishers: a fragile T3 frame with a 4+ save AND a 5+ invulnerable printed on the datasheet \u2014 our first invulnerable-save teachers. A fixed ten (one Alpha plus nine); the Alpha's options and the special weapons (arc rifle, plasma caliver, arquebus) are omitted for v1. Skitarii Vanguard (radium carbines, [ANTI-INFANTRY 4+]) are the sibling unit if a second AdMech entry is ever wanted. Profile verified 2026-07-04: 10th-codex-current baseline (Wahapedia) confirmed unchanged by the official 11th-edition Faction Pack errata (June 2026)."
+    }
+  }
+}

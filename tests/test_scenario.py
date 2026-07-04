@@ -135,6 +135,32 @@ class TestValidScenario:
 
 
 class TestPackagedScenarios:
+    def test_all_four_scenarios_are_listed(self) -> None:
+        assert [s.scenario_id for s in available_scenarios()] == [
+            "01_first_shots",
+            "02_tougher_targets",
+            "03_piercing_armour",
+            "04_lethal_hits",
+        ]
+
+    def test_tougher_targets_offers_two_toughness_values(self) -> None:
+        scenario = load_scenario_by_id("02_tougher_targets")
+        defenders = scenario.defender.units
+        toughness = sorted(u.datasheet.profile.toughness for u in defenders)
+        assert toughness == [4, 5]  # the whole lesson is this contrast
+        assert len(scenario.turns) == 2
+
+    def test_piercing_armour_defender_has_the_invulnerable(self) -> None:
+        scenario = load_scenario_by_id("03_piercing_armour")
+        rangers = scenario.defender.units[0].datasheet
+        assert rangers.profile.invulnerable_save == 5
+        assert scenario.player_side == "attacker"
+
+    def test_lethal_hits_attacker_carries_the_keyword(self) -> None:
+        scenario = load_scenario_by_id("04_lethal_hits")
+        flayer = scenario.attacker.units[0].datasheet.weapons[0]
+        assert "lethal_hits" in flayer.keywords
+
     def test_first_shots_loads_by_id(self) -> None:
         scenario = load_scenario_by_id("01_first_shots")
         assert scenario.title == "First Shots"

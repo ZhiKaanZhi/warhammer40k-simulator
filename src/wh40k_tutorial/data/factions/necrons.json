@@ -1,0 +1,115 @@
+{
+  "faction": "necrons",
+  "display_name": "Necrons",
+  "units": {
+    "necron_warriors": {
+      "display_name": "Necron Warriors",
+      "profile": {
+        "movement": 5,
+        "toughness": 4,
+        "save": 4,
+        "wounds": 1,
+        "leadership": 7,
+        "objective_control": 2
+      },
+      "unit_size": {
+        "min": 10,
+        "max": 20,
+        "default": 10
+      },
+      "weapons": {
+        "gauss_flayer": {
+          "display_name": "Gauss Flayer",
+          "type": "ranged",
+          "range": 24,
+          "attacks": 1,
+          "skill": 4,
+          "strength": 4,
+          "ap": 0,
+          "damage": 1,
+          "keywords": [
+            "lethal_hits",
+            "rapid_fire_1"
+          ]
+        },
+        "close_combat_weapon": {
+          "display_name": "Close Combat Weapon",
+          "type": "melee",
+          "range": 0,
+          "attacks": 1,
+          "skill": 4,
+          "strength": 4,
+          "ap": 0,
+          "damage": 1,
+          "keywords": []
+        }
+      },
+      "default_loadout": {
+        "gauss_flayer": "all"
+      },
+      "abilities": [],
+      "notes": "The durable line of the dynasties: T4 with a 4+ save, and gauss flayers whose [LETHAL HITS] make them our first real ability teachers. 'Reanimation Protocols' and 'Their Number is Legion' are named here but inert until v2; the gauss reaper wargear option is omitted. Profile verified 2026-07-04: 10th-codex-current baseline (Wahapedia) confirmed unchanged by the official 11th-edition Faction Pack errata (June 2026)."
+    },
+    "immortals": {
+      "display_name": "Immortals",
+      "profile": {
+        "movement": 5,
+        "toughness": 5,
+        "save": 3,
+        "wounds": 1,
+        "leadership": 7,
+        "objective_control": 2
+      },
+      "unit_size": {
+        "min": 5,
+        "max": 10,
+        "default": 5
+      },
+      "weapons": {
+        "gauss_blaster": {
+          "display_name": "Gauss Blaster",
+          "type": "ranged",
+          "range": 24,
+          "attacks": 2,
+          "skill": 3,
+          "strength": 5,
+          "ap": 1,
+          "damage": 1,
+          "keywords": [
+            "lethal_hits"
+          ]
+        },
+        "tesla_carbine": {
+          "display_name": "Tesla Carbine",
+          "type": "ranged",
+          "range": 24,
+          "attacks": 2,
+          "skill": 3,
+          "strength": 5,
+          "ap": 0,
+          "damage": 1,
+          "keywords": [
+            "assault",
+            "sustained_hits_2"
+          ]
+        },
+        "close_combat_weapon": {
+          "display_name": "Close Combat Weapon",
+          "type": "melee",
+          "range": 0,
+          "attacks": 2,
+          "skill": 3,
+          "strength": 4,
+          "ap": 0,
+          "damage": 1,
+          "keywords": []
+        }
+      },
+      "default_loadout": {
+        "gauss_blaster": "all"
+      },
+      "abilities": [],
+      "notes": "Elite Necron infantry: T5 behind a 3+ save \u2014 the tough contrast target for the wound-chart lesson. Default loadout is the gauss blaster; the tesla carbine ([SUSTAINED HITS 2]) is recorded as the wargear alternative for a future Sustained Hits scenario once loadout overrides exist. 'Implacable Eradication' is inert for v1. Profile verified 2026-07-04: 10th-codex-current baseline (Wahapedia) confirmed unchanged by the official 11th-edition Faction Pack errata (June 2026)."
+    }
+  }
+}

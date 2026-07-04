@@ -132,3 +132,19 @@ class TestOtherCommands:
         result = CliRunner().invoke(main, ["demo"])
         assert result.exit_code == 0, result.output
         assert "Battlefield" in result.output
+
+
+class TestAbilityScenarioEndToEnd:
+    """Scenario 04 through the real CLI: the ability must be visible in the
+    dice lines and narrated, at the pinned demo seed."""
+
+    def test_lethal_hits_shows_up_in_the_volley_and_the_teaching(self) -> None:
+        result = CliRunner().invoke(
+            main, ["play", "04_lethal_hits", "--seed", "5"], input="\n\n"
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+        assert "auto from lethal crits" in out          # the fact line annotation
+        assert "Lethal Hits let" in out                  # the narrator's sentence
+        assert "still gets saves" in out                 # ...and its saves caveat
+        assert "auto-wound is not an auto-kill" in out   # the outro's core lesson

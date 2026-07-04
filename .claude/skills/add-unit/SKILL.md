@@ -76,17 +76,18 @@ Field reference:
 
 ## Faction starter set (v1 goal)
 
-Five factions, one tutorial-ready unit each. Each chosen to demonstrate a different playstyle:
+Six factions (all ✅ shipped in build phase 8), each chosen to demonstrate a different playstyle:
 
-| Faction | v1 unit | Teaches by example |
+| Faction | v1 unit(s) | Teaches by example |
 |---|---|---|
-| Space Marines | Intercessor Squad | The balanced baseline. T4, Sv 3+, S4 AP-1 weapons. |
-| Tyranids | Termagants | A horde. T3, Sv 5+, many shots, weak individually. |
-| Necrons | Necron Warriors | Durable shooty. T4, Sv 4+, signature reanimation (v2). |
-| Orks | Ork Boyz | Bad shooters, deadly in melee. BS 5+, scary in fights. |
-| T'au | Fire Warriors | Pure shooting. No melee answer at all. |
+| Space Marines | Intercessor Squad | The balanced baseline. T4, Sv 3+, S4 AP-1 [ASSAULT, HEAVY] rifles. |
+| Tyranids | Termagants | A horde. T3, Sv 5+, S5 [ASSAULT] fleshborers, weak individually. |
+| Necrons | Necron Warriors + Immortals | Durable shooty with [LETHAL HITS] gauss — the first ability teachers. Immortals (T5, Sv 3+) are the wound-chart contrast target; their tesla option carries [SUSTAINED HITS 2] for a future lesson. Reanimation stays v2. |
+| Orks | Boyz | Bad shooters (BS 5+), surprisingly tough (T5), scary in melee. |
+| T'au Empire | Strike Team | Pure shooting (S5 pulse rifles). No melee answer at all. |
+| Adeptus Mechanicus | Skitarii Rangers | Fragile but shielded: the first invulnerable save (4+ armour, 5++). |
 
-When all five exist with clean JSON and the engine handles their basic weapons, v1 is content-complete on the data side.
+All six exist with clean JSON, every profile verified 2026-07-04 (10th-codex baseline + official 11th Faction Pack errata scan — recipe in `.claude/agents/rules-researcher.md`), so v1 is content-complete on the data side.
 
 ## Anti-patterns
 

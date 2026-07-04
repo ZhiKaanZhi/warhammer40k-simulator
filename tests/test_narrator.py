@@ -19,6 +19,7 @@ import pytest
 from wh40k_tutorial.core.combat import ShootingResult, resolve_shooting
 from wh40k_tutorial.core.models import Profile, UnitDatasheet, Weapon, load_faction_by_name
 from wh40k_tutorial.narrator import STEP_ORDER, narrate_volley
+from wh40k_tutorial.ui.live import volley_report_lines
 
 MARINES = load_faction_by_name("space_marines")["intercessor_squad"]
 GANTS = load_faction_by_name("tyranids")["termagants"]
@@ -34,6 +35,7 @@ def _weapon(
     strength: int = 4,
     ap: int = 0,
     damage: int = 1,
+    keywords: tuple[str, ...] = (),
 ) -> Weapon:
     return Weapon(
         name="test_gun",
@@ -45,6 +47,7 @@ def _weapon(
         strength=strength,
         ap=ap,
         damage=damage,
+        keywords=keywords,
     )
 
 
@@ -268,3 +271,60 @@ class TestExpansions:
         assert "invulnerable" in by_step["save"]
         assert "capped" in by_step["hit"]
         assert "overkill" in by_step["damage"]
+
+
+class TestAbilityNarration:
+    """Phase 7: the narrator explains abilities exactly when the record shows
+    them, and its entry count always matches the report's fact lines."""
+
+    def _crit_volley(self, keywords: tuple[str, ...], **weapon_overrides: int) -> ShootingResult:
+        weapon = _weapon(skill=2, keywords=keywords, **weapon_overrides)
+        result = _volley(weapon, _defender(toughness=3, save=5), models=10)
+        assert result.hit.critical_hits > 0  # precondition for every test below
+        return result
+
+    def test_sustained_sentence_appears_with_the_numbers(self) -> None:
+        result = self._crit_volley(("sustained_hits_2",))
+        line = _inline(result, "hit")
+        assert "Sustained Hits kicked in" in line
+        assert f"{result.hit.sustained_extra_hits} bonus in the pool" in line
+
+    def test_lethal_sentence_appears_on_the_wound_step(self) -> None:
+        result = self._crit_volley(("lethal_hits",))
+        line = _inline(result, "wound")
+        assert "Lethal Hits let" in line
+        assert "skip this roll" in line
+        assert "still gets saves" in line
+
+    def test_devastating_gets_a_diversion_sentence_and_a_sixth_step(self) -> None:
+        result = self._crit_volley(("devastating_wounds",), strength=8, damage=2)
+        assert result.wound.diverted_critical_wounds > 0  # precondition
+        assert "Devastating Wounds pulls" in _inline(result, "wound")
+
+        narrations = narrate_volley(result)
+        assert tuple(n.step for n in narrations) == (*STEP_ORDER, "mortal")
+        mortal = narrations[-1]
+        assert "no armour or invulnerable save" in mortal.inline
+        assert "single-wound packets" in mortal.expansion
+        assert "Feel No Pain" in mortal.expansion
+
+    def test_keywordless_volley_stays_five_steps_with_no_ability_talk(self) -> None:
+        result = _volley(_weapon(), _defender())
+        narrations = narrate_volley(result)
+        assert tuple(n.step for n in narrations) == STEP_ORDER
+        full_text = " ".join(n.inline for n in narrations)
+        for ability in ("Sustained", "Lethal", "Devastating"):
+            assert ability not in full_text
+
+    @pytest.mark.parametrize("keywords", [(), ("devastating_wounds",)])
+    def test_report_lines_and_narrations_stay_aligned(
+        self, keywords: tuple[str, ...]
+    ) -> None:
+        # The CLI zips fact lines with narrations strict=True: both sides add
+        # their mortal entry under the same condition, so the counts match
+        # whether or not mortals happened.
+        weapon = _weapon(skill=2, strength=8, damage=2, keywords=keywords)
+        result = _volley(weapon, _defender(toughness=3, save=5), models=10)
+        report = volley_report_lines(result, turn=1)
+        assert len(report) - 1 == len(narrate_volley(result))
+        assert ("MORTAL:" in " ".join(report)) == (result.mortal.count > 0)

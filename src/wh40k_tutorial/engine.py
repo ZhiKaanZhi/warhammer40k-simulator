@@ -3,7 +3,8 @@
 `run_scenario` walks a scenario's turn entries. Each entry is one shooting
 phase for one side: every eligible unit on that side activates once, the
 side's `Strategy` chooses each shot, `core.combat.resolve_shooting` resolves
-it, and the returned `DamageStep` updates the target's runtime state.
+it, and the result's final defender state (normal damage plus any mortal
+wounds) updates the target's runtime state.
 
 Boundaries (see ADR 0005):
 
@@ -170,8 +171,8 @@ def run_scenario(
                 target.models,
                 rng=dice,
             )
-            target.models = result.damage.models_remaining
-            target.wounds_on_lead = result.damage.wounds_remaining_on_lead
+            target.models = result.models_remaining
+            target.wounds_on_lead = result.wounds_remaining_on_lead
             state.shot_this_phase.add(attacker.unit_id)
             if on_volley is not None:
                 on_volley(

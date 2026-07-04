@@ -37,14 +37,22 @@ class StepNarration:
 
 
 def narrate_volley(result: ShootingResult) -> tuple[StepNarration, ...]:
-    """Explain each step of one volley, in pipeline order."""
-    return (
+    """Explain each step of one volley, in pipeline order.
+
+    Five entries for a keywordless weapon; a sixth ("mortal") appears exactly
+    when the record carries mortal wounds — the same condition under which
+    the report gains its MORTAL line, keeping the CLI interleave aligned.
+    """
+    narrations = [
         StepNarration("attacks", _attacks_inline(result), _ATTACKS_EXPANSION),
         StepNarration("hit", _hit_inline(result), _HIT_EXPANSION),
         StepNarration("wound", _wound_inline(result), _WOUND_EXPANSION),
         StepNarration("save", _save_inline(result), _SAVE_EXPANSION),
         StepNarration("damage", _damage_inline(result), _DAMAGE_EXPANSION),
-    )
+    ]
+    if result.mortal.count:
+        narrations.append(StepNarration("mortal", _mortal_inline(result), _MORTAL_EXPANSION))
+    return tuple(narrations)
 
 
 def _plural(count: int, singular: str, plural: str | None = None) -> str:
@@ -83,12 +91,22 @@ _ATTACKS_EXPANSION = (
 
 
 def _hit_inline(result: ShootingResult) -> str:
+    hit = result.hit
     skill_name = "Ballistic Skill" if result.attack.weapon.type == "ranged" else "Weapon Skill"
-    return (
-        f"To hit, each die must roll {result.hit.roll.target}+ — the firers' "
+    line = (
+        f"To hit, each die must roll {hit.roll.target}+ — the firers' "
         f"{skill_name}, printed on the weapon profile. A natural 1 always misses "
         f"and a natural 6 always hits."
     )
+    if hit.sustained_extra_hits:
+        per_critical = hit.sustained_extra_hits // hit.critical_hits
+        crits = _plural(hit.critical_hits, "critical hit")
+        line += (
+            f" Sustained Hits kicked in: the {hit.critical_hits} {crits} each add "
+            f"{per_critical} ordinary {_plural(per_critical, 'hit')} on top — "
+            f"{hit.sustained_extra_hits} bonus in the pool."
+        )
+    return line
 
 
 _HIT_EXPANSION = (
@@ -96,8 +114,9 @@ _HIT_EXPANSION = (
     "Ballistic Skill (BS) when shooting, Weapon Skill (WS) in melee — lower is "
     "better. Two results ignore everything else: an unmodified 1 always fails, and "
     "an unmodified 6 always hits. That unmodified 6 is also a critical hit, the "
-    "trigger that abilities like Sustained Hits and Lethal Hits feed on once they "
-    "enter the game. When to-hit modifiers exist, their net effect on the roll is "
+    "trigger abilities feed on: Sustained Hits turns each critical into extra "
+    "ordinary hits, and Lethal Hits lets a critical skip the wound roll and wound "
+    "automatically. When to-hit modifiers exist, their net effect on the roll is "
     "capped at plus or minus 1."
 )
 
@@ -118,11 +137,25 @@ _WOUND_RELATIONS = {
 def _wound_inline(result: ShootingResult) -> str:
     w = result.wound
     relation = _WOUND_RELATIONS[w.roll.target]
-    return (
+    line = (
         f"The weapon's Strength {w.strength} {relation} the target's Toughness "
         f"{w.toughness}, and the wound chart turns that comparison into a "
         f"{w.roll.target}+ to wound."
     )
+    auto = w.wounds - w.roll.successes
+    if auto:
+        line += (
+            f" Lethal Hits let {auto} critical {_plural(auto, 'hit')} skip this roll "
+            f"and wound automatically — the target still gets saves against them."
+        )
+    if w.diverted_critical_wounds:
+        d = w.diverted_critical_wounds
+        line += (
+            f" Devastating Wounds pulls the {d} critical {_plural(d, 'wound')} out of "
+            f"the queue: no save, no normal damage — they return as mortal wounds at "
+            f"the end."
+        )
+    return line
 
 
 _WOUND_EXPANSION = (
@@ -131,7 +164,8 @@ _WOUND_EXPANSION = (
     "S at least double T needs 2+ · S higher than T needs 3+ · S equal to T "
     "needs 4+ · S lower than T needs 5+ · S no more than half of T needs 6+. "
     "As with hit rolls, an unmodified 1 always fails and an unmodified 6 always "
-    "wounds — a critical wound, which some abilities build on later."
+    "wounds — a critical wound, the trigger Devastating Wounds converts into "
+    "mortal wounds."
 )
 
 
@@ -219,6 +253,40 @@ def _damage_inline(result: ShootingResult) -> str:
             f"{pts} vanished here as overkill."
         )
     return line
+
+
+def _mortal_inline(result: ShootingResult) -> str:
+    m = result.mortal
+    weapon = result.attack.weapon
+    line = (
+        f"Devastating Wounds turns each critical wound into the weapon's Damage in "
+        f"mortal wounds — {m.count} single-wound {_plural(m.count, 'hit')} that no "
+        f"armour or invulnerable save can stop, landing after the normal damage."
+    )
+    if weapon.damage > 1:
+        line = line.replace(
+            "mortal wounds —",
+            f"mortal wounds ({result.wound.diverted_critical_wounds} x {weapon.damage}) —",
+        )
+    if m.wasted:
+        line += (
+            f" {m.wasted} of them vanished with the unit — mortals never outlive "
+            f"the last model."
+        )
+    return line
+
+
+_MORTAL_EXPANSION = (
+    "Mortal wounds are the game's save-proof damage: nothing rolls against them — "
+    "not armour, not an invulnerable save. They resolve one at a time as "
+    "single-wound packets: the wounded lead model absorbs first, then the walk "
+    "crosses model to model until every packet lands or the unit is destroyed, and "
+    "leftovers vanish with it. That per-packet walk is why mortals, unlike normal "
+    "damage, can chew through several models from one attack. Here they come from "
+    "Devastating Wounds: a critical wound ends that attack early and comes back as "
+    "Damage-many mortal wounds after the volley's normal damage. (In the full "
+    "game, Feel No Pain rolls against each packet — not modeled yet.)"
+)
 
 
 _DAMAGE_EXPANSION = (

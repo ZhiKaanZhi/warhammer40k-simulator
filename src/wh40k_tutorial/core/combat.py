@@ -2,7 +2,7 @@
 
 The shooting (and later, melee) sequence is a pipeline:
 
-    attacks -> hits -> wounds -> saves -> damage
+    attacks -> hits -> wounds -> saves -> damage -> mortal wounds
 
 Each step is a pure function that consumes the previous step's record and
 returns its own frozen record. `resolve_shooting` strings them together and
@@ -10,14 +10,17 @@ returns a `ShootingResult`: a structured, step-by-step account carrying the
 raw dice faces and the facts that drove every target number, so the narrator
 can explain each roll without re-deriving any rules (ADR 0001).
 
-Phase-3 scope: no weapon keywords. The step records already carry the
-generic hand-off fields the keyword-hook framework (build phase 7) will fill (e.g.
-``HitStep.auto_wounds``), defaulting to "no ability" values so a keywordless
-weapon flows through unchanged (ADR 0002).
+Keyword abilities (build phase 7) hook in via ``core.abilities``: before-roll
+tweaks and after-roll pool adjustments per step, handed between steps through
+generic carry fields (``HitStep.auto_wounds``, ``WoundStep.mortal_wounds``,
+...) that default to "no ability" values, so a keywordless weapon flows
+through unchanged (ADR 0002). The mortal-wound step at the end resolves
+Devastating Wounds' single-wound packets after normal damage; a weapon
+without it records zeros and mirrors the damage step's final state.
 
-TODO (later phases): keyword hooks (Sustained Hits, Lethal Hits, ...) and
-``resolve_melee``, which will reuse ``_resolve_attack_sequence`` plus
-engine-level fight ordering — a new caller, not a new pipeline shape.
+TODO (later phases): ``resolve_melee``, which will reuse
+``_resolve_attack_sequence`` plus engine-level fight ordering — a new
+caller, not a new pipeline shape.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
+from wh40k_tutorial.core import abilities
 from wh40k_tutorial.core.dice import RollResult, roll_d6, save_target, wound_target
 from wh40k_tutorial.core.models import Profile, UnitDatasheet, Weapon
 
@@ -49,11 +53,12 @@ class HitStep:
     """The hit roll. The target number is the weapon's skill (``roll.target``)."""
 
     roll: RollResult
-    hits: int
+    hits: int  # final total, including any Sustained Hits extras
     critical_hits: int  # natural 6s — the trigger for Sustained/Lethal/Dev Wounds
-    # Carry field for phase-7 abilities (Lethal Hits): hits that skip the
-    # wound roll and count directly as wounds. Saves still apply to them.
-    auto_wounds: int = 0
+    # Generic carry fields (ADR 0002) filled by keyword hooks; a weapon with
+    # no abilities leaves them at zero and flows through unchanged.
+    auto_wounds: int = 0  # hits that skip the wound roll (Lethal Hits); saves still apply
+    sustained_extra_hits: int = 0  # plain extra hits added on criticals (Sustained Hits)
 
 
 @dataclass(frozen=True)
@@ -65,6 +70,15 @@ class WoundStep:
     toughness: int
     wounds: int           # successful wound rolls plus any carried auto-wounds
     critical_wounds: int  # natural 6s — the trigger for Devastating Wounds
+    # Generic carries (ADR 0002): Devastating Wounds pulls critical wounds
+    # out of the save/damage path and queues single-wound mortal packets.
+    diverted_critical_wounds: int = 0
+    mortal_wounds: int = 0
+
+    @property
+    def savable_wounds(self) -> int:
+        """The wounds that proceed to the saving throw."""
+        return self.wounds - self.diverted_critical_wounds
 
 
 @dataclass(frozen=True)
@@ -109,6 +123,29 @@ class DamageStep:
 
 
 @dataclass(frozen=True)
+class MortalWoundsStep:
+    """Mortal wounds from Devastating Wounds, resolved after normal damage.
+
+    Per the 11th-edition rules (06.02, verified 2026-07-03): mortal wounds
+    bypass every saving throw and resolve one at a time as single-wound
+    packets — the wounded lead model absorbs first, then the walk crosses
+    models until every packet lands or the unit is destroyed, and any excess
+    dies with the unit. (Feel No Pain would roll per packet; not modeled.)
+    ``models_remaining``/``wounds_remaining_on_lead`` are the defender's
+    final state after BOTH normal damage and mortals — the engine's single
+    source of truth. A weapon without Devastating Wounds records a count of
+    zero and mirrors the damage step's state.
+    """
+
+    count: int
+    inflicted: int
+    wasted: int  # packets lost because the unit was already destroyed
+    models_slain: int
+    models_remaining: int
+    wounds_remaining_on_lead: int
+
+
+@dataclass(frozen=True)
 class ShootingResult:
     """One weapon's worth of shooting, as a narratable record of facts."""
 
@@ -119,6 +156,17 @@ class ShootingResult:
     wound: WoundStep
     save: SaveStep
     damage: DamageStep
+    mortal: MortalWoundsStep
+
+    @property
+    def models_remaining(self) -> int:
+        """Defender models left after the whole volley, mortals included."""
+        return self.mortal.models_remaining
+
+    @property
+    def wounds_remaining_on_lead(self) -> int:
+        """The lead model's wounds after the whole volley, mortals included."""
+        return self.mortal.wounds_remaining_on_lead
 
 
 def resolve_shooting(
@@ -184,14 +232,20 @@ def _resolve_attack_sequence(
         total_attacks=attacker_model_count * weapon.attacks,
     )
     hit = _roll_hits(attack, rng)
-    wound = _roll_wounds(hit, weapon.strength, defender.profile.toughness, rng)
-    save = _roll_saves(wound.wounds, defender.profile, weapon.ap, rng)
+    wound = _roll_wounds(hit, weapon, defender.profile.toughness, rng)
+    save = _roll_saves(wound.savable_wounds, defender.profile, weapon.ap, rng)
     damage = _allocate_damage(
         failed_saves=save.failed_saves,
         damage=weapon.damage,
         wounds_per_model=defender.profile.wounds,
         wounds_on_lead=defender_wounds_remaining,
         model_count=defender_model_count,
+    )
+    mortal = _resolve_mortal_wounds(
+        count=wound.mortal_wounds,
+        wounds_per_model=defender.profile.wounds,
+        wounds_on_lead=damage.wounds_remaining_on_lead,
+        model_count=damage.models_remaining,
     )
     return ShootingResult(
         attacker=attacker,
@@ -201,26 +255,52 @@ def _resolve_attack_sequence(
         wound=wound,
         save=save,
         damage=damage,
+        mortal=mortal,
     )
 
 
 def _roll_hits(attack: AttackStep, rng: random.Random) -> HitStep:
-    roll = roll_d6(attack.total_attacks, target=attack.weapon.skill, rng=rng)
-    return HitStep(roll=roll, hits=roll.successes, critical_hits=roll.critical_hits)
+    tweak = abilities.hit_roll_tweak(attack.weapon)
+    roll = roll_d6(
+        attack.total_attacks,
+        target=attack.weapon.skill,
+        modifier=tweak.modifier,
+        reroll=tweak.reroll,
+        rng=rng,
+    )
+    adj = abilities.hit_adjustment(roll, attack.weapon)
+    return HitStep(
+        roll=roll,
+        hits=roll.successes + adj.extra_hits,
+        critical_hits=roll.critical_hits,
+        auto_wounds=adj.auto_wounds,
+        sustained_extra_hits=adj.extra_hits,
+    )
 
 
-def _roll_wounds(hit: HitStep, strength: int, toughness: int, rng: random.Random) -> WoundStep:
-    # Normal hits roll to wound; carried auto-wounds (phase 7, Lethal Hits)
-    # are added on top without a roll — the step never needs to know which
-    # ability sent them (ADR 0002).
+def _roll_wounds(hit: HitStep, weapon: Weapon, toughness: int, rng: random.Random) -> WoundStep:
+    # Normal hits roll to wound; carried auto-wounds (Lethal Hits) are added
+    # on top without a roll — the step never needs to know which ability
+    # sent them (ADR 0002). Auto-wounds skipped the roll, so they can never
+    # be critical wounds; only rolled natural 6s can divert to mortals.
     normal_hits = hit.hits - hit.auto_wounds
-    roll = roll_d6(normal_hits, target=wound_target(strength, toughness), rng=rng)
+    tweak = abilities.wound_roll_tweak(weapon)
+    roll = roll_d6(
+        normal_hits,
+        target=wound_target(weapon.strength, toughness),
+        modifier=tweak.modifier,
+        reroll=tweak.reroll,
+        rng=rng,
+    )
+    adj = abilities.wound_adjustment(roll, weapon)
     return WoundStep(
         roll=roll,
-        strength=strength,
+        strength=weapon.strength,
         toughness=toughness,
         wounds=roll.successes + hit.auto_wounds,
         critical_wounds=roll.critical_hits,
+        diverted_critical_wounds=adj.diverted_critical_wounds,
+        mortal_wounds=adj.mortal_wounds,
     )
 
 
@@ -281,6 +361,43 @@ def _allocate_damage(
         damage_per_failed_save=damage,
         damage_inflicted=inflicted,
         wasted_damage=wasted,
+        models_slain=slain,
+        models_remaining=models_left,
+        wounds_remaining_on_lead=current,
+    )
+
+
+def _resolve_mortal_wounds(
+    *,
+    count: int,
+    wounds_per_model: int,
+    wounds_on_lead: int,
+    model_count: int,
+) -> MortalWoundsStep:
+    """Inflict mortal wounds one at a time, walking across models (06.02).
+
+    Each packet removes exactly one wound from the current lead model — the
+    wounded model absorbs first by rule, and the lead model is the wounded
+    one in our uniform units — so the walk naturally crosses model
+    boundaries. Packets left over when the unit dies are lost.
+    """
+    models_left = model_count
+    current = wounds_on_lead if models_left > 0 else 0
+    inflicted = wasted = slain = 0
+    for _ in range(count):
+        if models_left == 0:
+            wasted += 1
+            continue
+        current -= 1
+        inflicted += 1
+        if current == 0:
+            slain += 1
+            models_left -= 1
+            current = wounds_per_model if models_left > 0 else 0
+    return MortalWoundsStep(
+        count=count,
+        inflicted=inflicted,
+        wasted=wasted,
         models_slain=slain,
         models_remaining=models_left,
         wounds_remaining_on_lead=current,

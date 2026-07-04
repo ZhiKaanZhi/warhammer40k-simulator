@@ -33,6 +33,27 @@ class Profile:
 
 
 @dataclass(frozen=True)
+class WeaponKeyword:
+    """A weapon keyword as the hook framework consumes it (ADR 0002).
+
+    JSON stores canonical lowercase strings ("sustained_hits_1"); this is the
+    structured form — a name plus an optional numeric parameter — so one hook
+    can serve every value of a parametric ability.
+    """
+
+    name: str  # e.g. "sustained_hits", "lethal_hits"
+    value: int | None = None  # e.g. 1 for "sustained_hits_1"; None if bare
+
+
+def parse_weapon_keyword(raw: str) -> WeaponKeyword:
+    """Split a canonical keyword string into name + optional trailing number."""
+    head, _, tail = raw.rpartition("_")
+    if head and tail.isdigit():
+        return WeaponKeyword(name=head, value=int(tail))
+    return WeaponKeyword(name=raw)
+
+
+@dataclass(frozen=True)
 class Weapon:
     """A weapon profile.
 
@@ -53,6 +74,11 @@ class Weapon:
     ap: int  # positive integer magnitude
     damage: int
     keywords: tuple[str, ...] = ()
+
+    @property
+    def parsed_keywords(self) -> tuple[WeaponKeyword, ...]:
+        """The keywords in structured name+value form, for the hook framework."""
+        return tuple(parse_weapon_keyword(raw) for raw in self.keywords)
 
 
 @dataclass(frozen=True)

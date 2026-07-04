@@ -17,7 +17,9 @@ import random
 import pytest
 
 from wh40k_tutorial.core.combat import (
+    ShootingResult,
     _allocate_damage,
+    _resolve_mortal_wounds,
     resolve_shooting,
 )
 from wh40k_tutorial.core.models import (
@@ -315,3 +317,131 @@ class TestNarratorSufficiency:
             f"{' and no invulnerable save' if save.invulnerable_save is None else ''}"
         )
         assert line == "No save possible: AP -3 against a 5+ armour and no invulnerable save"
+
+
+# ---------------------------------------------------------------------------
+# Phase 7: keyword abilities flowing through the pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestKeywordAbilitiesInThePipeline:
+    """The three shipped abilities, end to end through resolve_shooting.
+
+    Assertions are relationships read off one seeded record — the same
+    invariants that must hold for any roll — with explicit preconditions
+    (crits > 0) so an unlucky seed fails loudly instead of passing vacuously.
+    """
+
+    SEED = 42
+
+    def _volley(
+        self,
+        weapon: Weapon,
+        defender: UnitDatasheet | None = None,
+        *,
+        models: int = 10,
+    ) -> ShootingResult:
+        defender = defender or _sheet("target", toughness=3, save=5)
+        return resolve_shooting(
+            _sheet("shooter", weapon=weapon),
+            models,
+            weapon,
+            defender,
+            defender.profile.wounds,
+            10,
+            rng=random.Random(self.SEED),
+        )
+
+    def test_sustained_hits_adds_per_critical_and_feeds_the_wound_pool(self) -> None:
+        result = self._volley(_weapon(attacks=2, skill=2, keywords=("sustained_hits_1",)))
+        hit = result.hit
+        assert hit.critical_hits > 0  # precondition
+        assert hit.sustained_extra_hits == hit.critical_hits  # X = 1
+        assert hit.hits == hit.roll.successes + hit.sustained_extra_hits
+        # The extras are plain hits: the wound step rolls every one of them.
+        assert len(result.wound.roll.raw_rolls) == hit.hits
+
+    def test_sustained_hits_scales_with_its_value(self) -> None:
+        one = self._volley(_weapon(attacks=2, skill=2, keywords=("sustained_hits_1",)))
+        two = self._volley(_weapon(attacks=2, skill=2, keywords=("sustained_hits_2",)))
+        # Same seed, same dice: only the multiplier differs.
+        assert one.hit.critical_hits == two.hit.critical_hits > 0
+        assert two.hit.sustained_extra_hits == 2 * one.hit.sustained_extra_hits
+
+    def test_lethal_hits_skip_the_wound_roll_but_not_the_save(self) -> None:
+        result = self._volley(_weapon(attacks=2, skill=2, keywords=("lethal_hits",)))
+        hit, wound = result.hit, result.wound
+        assert hit.critical_hits > 0  # precondition
+        assert hit.auto_wounds == hit.critical_hits
+        # Only the non-critical hits rolled to wound...
+        assert len(wound.roll.raw_rolls) == hit.hits - hit.auto_wounds
+        # ...the auto-wounds joined the pool afterwards, and all face saves.
+        assert wound.wounds == wound.roll.successes + hit.auto_wounds
+        assert wound.savable_wounds == wound.wounds
+        assert len(result.save.roll.raw_rolls) == wound.wounds
+
+    def test_devastating_wounds_diverts_criticals_into_mortals(self) -> None:
+        weapon = _weapon(attacks=2, skill=2, strength=8, damage=2, keywords=("devastating_wounds",))
+        defender = _sheet("target", toughness=3, save=5, wounds=2)
+        result = self._volley(weapon, defender)
+        wound, mortal = result.wound, result.mortal
+        assert wound.roll.critical_hits > 0  # precondition
+        assert wound.diverted_critical_wounds == wound.roll.critical_hits
+        assert wound.savable_wounds == wound.wounds - wound.diverted_critical_wounds
+        # Saves were rolled only for the non-diverted wounds.
+        assert len(result.save.roll.raw_rolls) == wound.savable_wounds
+        # Each diverted critical became Damage-many single-wound packets.
+        assert mortal.count == wound.diverted_critical_wounds * weapon.damage
+        assert mortal.inflicted + mortal.wasted == mortal.count
+        # Mortals landed after normal damage, on the damage step's state.
+        assert mortal.models_remaining + mortal.models_slain == result.damage.models_remaining
+        assert result.models_remaining == mortal.models_remaining
+        assert result.wounds_remaining_on_lead == mortal.wounds_remaining_on_lead
+
+    def test_auto_wounds_never_fuel_devastating_wounds(self) -> None:
+        # Lethal's auto-wounds skipped the wound roll, so they can't be
+        # critical wounds: only rolled natural 6s divert to mortals.
+        weapon = _weapon(attacks=2, skill=2, keywords=("lethal_hits", "devastating_wounds"))
+        result = self._volley(weapon)
+        assert result.hit.auto_wounds > 0  # precondition
+        assert result.wound.diverted_critical_wounds == result.wound.roll.critical_hits
+        assert result.wound.savable_wounds == (
+            result.wound.wounds - result.wound.roll.critical_hits
+        )
+
+    def test_keywordless_volley_records_a_mirroring_zero_mortal_step(self) -> None:
+        result = self._volley(_weapon(attacks=2, skill=2))
+        assert result.mortal.count == 0
+        assert result.mortal.models_remaining == result.damage.models_remaining
+        assert result.mortal.wounds_remaining_on_lead == result.damage.wounds_remaining_on_lead
+
+    def test_same_seed_same_outcome_with_abilities(self) -> None:
+        weapon = _weapon(attacks=2, skill=2, keywords=("sustained_hits_1", "devastating_wounds"))
+        assert self._volley(weapon) == self._volley(weapon)
+
+
+class TestMortalWoundAllocator:
+    def test_packets_walk_across_models_and_excess_dies_with_the_unit(self) -> None:
+        # 2 models of 2 wounds, lead already on 1: packet 1 fells the lead,
+        # packets 2-3 fell the next, packets 4-5 have nobody left to hurt.
+        step = _resolve_mortal_wounds(count=5, wounds_per_model=2, wounds_on_lead=1, model_count=2)
+        assert (step.inflicted, step.models_slain, step.wasted) == (3, 2, 2)
+        assert step.models_remaining == 0
+        assert step.wounds_remaining_on_lead == 0
+
+    def test_partial_packet_leaves_a_wounded_lead(self) -> None:
+        step = _resolve_mortal_wounds(count=1, wounds_per_model=3, wounds_on_lead=3, model_count=2)
+        assert (step.inflicted, step.models_slain, step.wasted) == (1, 0, 0)
+        assert step.models_remaining == 2
+        assert step.wounds_remaining_on_lead == 2
+
+    def test_zero_count_passes_state_through(self) -> None:
+        step = _resolve_mortal_wounds(count=0, wounds_per_model=2, wounds_on_lead=1, model_count=4)
+        assert step.models_remaining == 4
+        assert step.wounds_remaining_on_lead == 1
+        assert step.count == step.inflicted == step.wasted == 0
+
+    def test_already_destroyed_unit_wastes_everything(self) -> None:
+        step = _resolve_mortal_wounds(count=3, wounds_per_model=2, wounds_on_lead=1, model_count=0)
+        assert (step.inflicted, step.wasted) == (0, 3)
+        assert step.models_remaining == 0

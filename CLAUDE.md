@@ -6,7 +6,7 @@ The goal is **learning**, not rules-accurate simulation. We narrate every dice r
 
 ## Status
 
-Build phases 1–6 are implemented and tested: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline, the Rich UI shell, the scenario runner, and the narrator — `wh40k play 01_first_shots` runs the first tutorial end to end with the rule behind every roll explained inline, a "deeper rule?" expansion on demand, and the final rules panel recapping the last volley. Keyword hooks (phase 7) are next — see "Build order" below.
+Build phases 1–7 are implemented and tested: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline, the Rich UI shell, the scenario runner, the narrator, and the keyword-hook framework with the first three abilities (Sustained Hits, Lethal Hits, Devastating Wounds — the last with its full mortal-wound track). `wh40k play 01_first_shots` runs the first tutorial end to end with every roll explained. Remaining: content (phase 8) — more factions and scenarios, including ones that showcase the new abilities. See "Build order" below.
 
 ## Tech stack
 
@@ -42,7 +42,8 @@ src/wh40k_tutorial/
 ├── core/           # Pure domain logic (loaders read JSON, nothing else does I/O)
 │   ├── dice.py     # ✅ Implemented. Dice primitives. Heavily tested.
 │   ├── models.py   # ✅ Implemented. Datasheet dataclasses + validating JSON loader.
-│   ├── combat.py   # ✅ Implemented. The hit → wound → save → damage pipeline.
+│   ├── combat.py   # ✅ Implemented. The hit → wound → save → damage → mortals pipeline.
+│   ├── abilities.py# ✅ Implemented. Keyword hooks (ADR 0002): Sustained/Lethal/Devastating.
 │   └── scenario.py # ✅ Implemented. Scenario dataclasses + validating JSON loader.
 ├── engine.py       # ✅ Implemented. Runtime battle state + the turn loop (ADR 0005).
 ├── narrator.py     # ✅ Implemented. Pure formatter: the rule behind each step + "why?" expansions (ADR 0001).
@@ -83,7 +84,7 @@ Each phase is independently shippable. Don't move on until the previous one has 
 4. **Rich UI shell** ✅ done — the static three-panel layout (battlefield grid, action log, rules panel) behind `wh40k demo`
 5. **Scenario runner** ✅ done — validating scenario loader, runtime state + turn loop in `engine.py` (ADR 0005), `HumanStrategy` and `ScriptedStrategy` behind the protocol, panels wired to live state; `wh40k list` / `wh40k play` work end to end
 6. **Narrator** ✅ done — `narrator.py` turns each `ShootingResult` into five per-step explanations, printed inline under each fact line; a post-volley "deeper rule?" prompt expands any step, and the final shell's rules panel recaps the last volley
-7. **Keyword hooks** — the per-step ability framework from ADR 0002, then the first weapon keywords the next scenarios need (e.g. Sustained Hits, Lethal Hits). Until this phase, keywords load and validate but stay inert.
+7. **Keyword hooks** ✅ done — `core/abilities.py` implements ADR 0002's per-step hook framework (before-roll tweaks with pipeline-owned sum-clamp-and-best-re-roll combination; after-roll pool adjustments) and the first three abilities: Sustained Hits X, Lethal Hits (auto-wound accepted by v1 policy inside the hook), and Devastating Wounds with the full mortal-wound resolution step (single-wound packets after normal damage). Other canonical keywords still load, validate, and stay inert.
 8. **More scenarios + factions** — once one scenario works end-to-end, add the rest. This is data work, not code work.
 
 Only *after* phase 8 do we consider the heuristic AI opponent. Don't be tempted earlier — `ScriptedStrategy` is enough for tutorials and forces the engine to stay clean.

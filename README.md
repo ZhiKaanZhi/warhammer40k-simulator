@@ -6,7 +6,7 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**First scenario teaches, end to end (build phases 1–6).** Dice primitives, the validated faction and scenario loaders, the full shooting pipeline, the Rich interface, the scenario runner, and the narrator are implemented and heavily tested. `wh40k play 01_first_shots` now does what the project promises: every roll's facts are reported step by step with the rule that drove them right underneath, you can ask for the deeper rule behind any step after a volley, and the final battlefield view recaps the rules of the last volley in its side panel. Keyword abilities (phase 7) come next. See `CLAUDE.md` for the architecture and build order.
+**Engine feature-complete for v1; content next (build phases 1–7).** Dice primitives, the validated loaders, the full shooting pipeline, the Rich interface, the scenario runner, the narrator, and the keyword-ability framework are implemented and heavily tested. `wh40k play 01_first_shots` does what the project promises — every roll's facts reported step by step with the rule that drove them underneath, deeper rules on demand — and the engine now speaks its first three weapon abilities: Sustained Hits, Lethal Hits, and Devastating Wounds with true mortal-wound resolution, each narrated when it fires. What remains for v1 is content (phase 8): the other three factions and the scenarios that teach these abilities. See `CLAUDE.md` for the architecture and build order.
 
 ## Quick start
 

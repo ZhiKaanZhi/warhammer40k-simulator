@@ -18,7 +18,7 @@ from collections.abc import Sequence
 
 from rich.layout import Layout
 
-from wh40k_tutorial.core.combat import SaveStep, ShootingResult
+from wh40k_tutorial.core.combat import HitStep, SaveStep, ShootingResult, WoundStep
 from wh40k_tutorial.core.dice import RollResult
 from wh40k_tutorial.strategies.base import UnitSnapshot
 from wh40k_tutorial.ui.shell import (
@@ -76,7 +76,13 @@ def render_live_shell(
 
 
 def volley_report_lines(result: ShootingResult, *, turn: int) -> list[str]:
-    """One volley as plain step-by-step facts, read straight off the record."""
+    """One volley as plain step-by-step facts, read straight off the record.
+
+    Header plus one line per step: five for a keywordless weapon, six when
+    Devastating Wounds queued mortal wounds (the MORTAL line appears exactly
+    when ``result.mortal.count`` is non-zero — the narrator adds its matching
+    entry under the same condition, keeping the CLI's interleave aligned).
+    """
     attack, hit, wound = result.attack, result.hit, result.wound
     save = result.save
     weapon = attack.weapon
@@ -86,13 +92,59 @@ def volley_report_lines(result: ShootingResult, *, turn: int) -> list[str]:
         f"{weapon.display_name} at {result.defender.display_name}.",
         f"ATTACKS: {attack.attacker_models} models x {attack.attacks_per_model} attacks "
         f"= {attack.total_attacks} dice",
-        f"HIT:     need {hit.roll.target}+ — rolled {_faces(hit.roll)} -> {hit.hits} hit",
-        f"WOUND:   need {wound.roll.target}+ (S{wound.strength} vs T{wound.toughness}) "
-        f"— rolled {_faces(wound.roll)} -> {wound.wounds} wound",
+        _hit_line(hit),
+        _wound_line(wound),
         _save_line(save),
         _damage_line(result),
     ]
+    if result.mortal.count:
+        lines.append(_mortal_line(result))
     return lines
+
+
+def _hit_line(hit: HitStep) -> str:
+    line = f"HIT:     need {hit.roll.target}+ — rolled {_faces(hit.roll)} -> {hit.hits} hit"
+    if hit.sustained_extra_hits:
+        line += (
+            f" ({hit.roll.successes} rolled + {hit.sustained_extra_hits} sustained "
+            f"from {hit.critical_hits} crits)"
+        )
+    return line
+
+
+def _wound_line(wound: WoundStep) -> str:
+    line = (
+        f"WOUND:   need {wound.roll.target}+ (S{wound.strength} vs T{wound.toughness}) "
+        f"— rolled {_faces(wound.roll)} -> {wound.wounds} wound"
+    )
+    auto = wound.wounds - wound.roll.successes
+    if auto:
+        line += f" ({wound.roll.successes} rolled + {auto} auto from lethal crits)"
+    if wound.diverted_critical_wounds:
+        line += (
+            f", {wound.diverted_critical_wounds} critical diverted to mortal wounds "
+            f"-> {wound.savable_wounds} face saves"
+        )
+    return line
+
+
+def _mortal_line(result: ShootingResult) -> str:
+    mortal = result.mortal
+    started_with = mortal.models_remaining + mortal.models_slain
+    line = (
+        f"MORTAL:  {result.wound.diverted_critical_wounds} critical x "
+        f"{result.attack.weapon.damage} damage = {mortal.count} mortal wounds, no saves "
+        f"-> {mortal.models_slain} more slain; {mortal.models_remaining} of "
+        f"{started_with} remain"
+    )
+    wounds_per_model = result.defender.profile.wounds
+    if mortal.models_remaining > 0 and mortal.wounds_remaining_on_lead != wounds_per_model:
+        line += (
+            f" (lead model on {mortal.wounds_remaining_on_lead} of {wounds_per_model} wounds)"
+        )
+    if mortal.wasted:
+        line += f", {mortal.wasted} lost with the unit"
+    return line
 
 
 def _faces(roll: RollResult) -> str:

@@ -1,6 +1,6 @@
 # Keyword abilities are per-step hooks; cross-step abilities split the pool and carry forward
 
-**Status:** accepted
+**Status:** accepted — implemented in build phase 7 (`core/abilities.py`)
 
 Weapon special rules (Sustained Hits, Lethal Hits, Devastating Wounds, etc.) are implemented as **small per-step functions ("hooks") looked up by keyword**, not as branches in the combat function and not as classes. After the pipeline computes a step (e.g. the hit roll), it finds any hooks registered for that step among the weapon's keywords and runs them. Adding an ability means writing one small function and adding one registry entry — the base combat code never changes.
 

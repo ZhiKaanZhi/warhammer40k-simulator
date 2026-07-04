@@ -1,0 +1,53 @@
+{
+  "faction": "tau_empire",
+  "display_name": "T'au Empire",
+  "units": {
+    "strike_team": {
+      "display_name": "Strike Team",
+      "profile": {
+        "movement": 6,
+        "toughness": 3,
+        "save": 4,
+        "wounds": 1,
+        "leadership": 7,
+        "objective_control": 2
+      },
+      "unit_size": {
+        "min": 10,
+        "max": 10,
+        "default": 10
+      },
+      "weapons": {
+        "pulse_rifle": {
+          "display_name": "Pulse Rifle",
+          "type": "ranged",
+          "range": 30,
+          "attacks": 1,
+          "skill": 4,
+          "strength": 5,
+          "ap": 0,
+          "damage": 1,
+          "keywords": [
+            "rapid_fire_1"
+          ]
+        },
+        "close_combat_weapon": {
+          "display_name": "Close Combat Weapon",
+          "type": "melee",
+          "range": 0,
+          "attacks": 1,
+          "skill": 5,
+          "strength": 3,
+          "ap": 0,
+          "damage": 1,
+          "keywords": []
+        }
+      },
+      "default_loadout": {
+        "pulse_rifle": "all"
+      },
+      "abilities": [],
+      "notes": "Pure shooting and no melee answer at all: Strength 5 rifles on a fragile T3 4+ frame. A Strike Team is a fixed ten (one Shas'ui plus nine); pulse pistols, the support turret, drones and the Shas'ui's options are omitted for v1. Profile verified 2026-07-04: 10th-codex-current baseline (Wahapedia) confirmed unchanged by the official 11th-edition Faction Pack errata (June 2026)."
+    }
+  }
+}

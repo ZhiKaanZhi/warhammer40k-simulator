@@ -27,6 +27,12 @@ article pages) contain no PDF links — this is the JS/403 wall earlier research
    (asset URLs carry content hashes — if a dead link, re-run step 1).
 4. The PDF's rule tables print their key numerals as graphics, so `pdftotext` drops them: **rasterize the
    table pages (`pdftoppm`) and read them visually** before asserting a table's contents.
+5. **Unit datasheets:** 11th ships free per-faction **"Faction Pack"** PDFs (same API, `searchTerm` =
+   faction name; e.g. "Faction Pack: Necrons", June 2026). These are codex *companions*: new datasheets,
+   detachments, and an errata section — the classic units' full cards are NOT inside. The authoritative
+   11th profile for a codex unit is therefore the **10th-codex-current baseline (Wahapedia) + the pack's
+   errata**: grep the pack text for the unit and its weapons; no mention in the updates section means the
+   baseline stands unchanged. This is how the six shipped factions were verified on 2026-07-04.
 
 ## When you're invoked
 

@@ -6,7 +6,7 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**Engine feature-complete for v1; content next (build phases 1–7).** Dice primitives, the validated loaders, the full shooting pipeline, the Rich interface, the scenario runner, the narrator, and the keyword-ability framework are implemented and heavily tested. `wh40k play 01_first_shots` does what the project promises — every roll's facts reported step by step with the rule that drove them underneath, deeper rules on demand — and the engine now speaks its first three weapon abilities: Sustained Hits, Lethal Hits, and Devastating Wounds with true mortal-wound resolution, each narrated when it fires. What remains for v1 is content (phase 8): the other three factions and the scenarios that teach these abilities. See `CLAUDE.md` for the architecture and build order.
+**v1 complete (build phases 1–8).** Engine and content are both in: dice primitives, the validated loaders, the full shooting pipeline with the keyword-ability framework (Sustained Hits, Lethal Hits, Devastating Wounds with true mortal-wound resolution), the Rich interface, the scenario runner, and the narrator — plus six verified factions and a four-scenario teaching ladder. `wh40k play` walks a complete beginner from the bare combat sequence (First Shots) through the wound chart (Tougher Targets) and armour/invulnerable saves (Piercing Armour) to their first weapon ability (Lethal Hits), with every roll explained and deeper rules on demand. Further scenarios are pure data work; the heuristic AI opponent is the headline v2 feature. See `CLAUDE.md` for the architecture and build order.
 
 ## Quick start
 
@@ -21,7 +21,7 @@ wh40k --help                 # CLI help
 
 ## What's in the box
 
-- **Five factions planned for v1:** Space Marines, Tyranids, Necrons, Orks, T'au — each picked to demonstrate a different playstyle.
+- **Six factions, verified against the current rules:** Space Marines, Tyranids, Necrons, Orks, T'au Empire, Adeptus Mechanicus — each picked to demonstrate a different playstyle, every profile checked against the 10th-codex baseline plus the official 11th-edition Faction Pack errata.
 - **Scenario-driven tutorials.** Each scenario teaches one concept (hit/wound/save/damage, AP, target priority, etc.).
 - **Rich-based TUI.** Battlefield grid, action log, contextual rules panel — all in your terminal.
 - **Extensible by design.** The strategy interface that currently drives scripted opponents is the same one a heuristic AI will plug into later.

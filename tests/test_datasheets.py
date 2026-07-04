@@ -95,7 +95,9 @@ class TestPackagedFactions:
         assert rifle.display_name == "Bolt Rifle"
         assert (rifle.range, rifle.attacks, rifle.skill) == (24, 2, 3)
         assert (rifle.strength, rifle.ap, rifle.damage) == (4, 1, 1)
-        assert rifle.keywords == ("assault",)
+        assert rifle.keywords == ("assault", "heavy")
+        ccw = {w.name: w for w in squad.weapons}["close_combat_weapon"]
+        assert ccw.attacks == 3
         assert squad.default_model_count == 5
         assert (squad.min_model_count, squad.max_model_count) == (5, 10)
         assert squad.default_loadout == ("bolt_rifle",)
@@ -107,7 +109,8 @@ class TestPackagedFactions:
         assert (p.toughness, p.save, p.wounds) == (3, 5, 1)
         borer = {w.name: w for w in swarm.weapons}["fleshborer"]
         assert (borer.range, borer.attacks, borer.skill) == (18, 1, 4)
-        assert (borer.strength, borer.ap, borer.damage) == (4, 0, 1)
+        assert (borer.strength, borer.ap, borer.damage) == (5, 0, 1)
+        assert borer.keywords == ("assault",)
         assert swarm.default_model_count == 10
         assert (swarm.min_model_count, swarm.max_model_count) == (10, 20)
         melee = {w.name: w for w in swarm.weapons}["claws_and_teeth"]
@@ -214,3 +217,54 @@ class TestMalformedData:
         file.write_text("{not json", encoding="utf-8")
         with pytest.raises(FactionDataError, match=r"broken\.json"):
             load_faction(file)
+
+
+class TestPhase8Factions:
+    """The four factions added in build phase 8, spot-checked against the
+    verified profiles (10th-codex baseline + 11th Faction Pack errata scan)."""
+
+    def test_necron_warriors_teach_lethal_hits(self) -> None:
+        warriors = load_faction_by_name("necrons")["necron_warriors"]
+        p = warriors.profile
+        assert (p.movement, p.toughness, p.save, p.wounds) == (5, 4, 4, 1)
+        flayer = {w.name: w for w in warriors.weapons}["gauss_flayer"]
+        assert flayer.keywords == ("lethal_hits", "rapid_fire_1")
+        assert (flayer.range, flayer.attacks, flayer.skill, flayer.strength) == (24, 1, 4, 4)
+        assert warriors.default_loadout == ("gauss_flayer",)
+
+    def test_immortals_are_the_tough_contrast_target(self) -> None:
+        immortals = load_faction_by_name("necrons")["immortals"]
+        p = immortals.profile
+        assert (p.toughness, p.save, p.wounds) == (5, 3, 1)
+        assert (immortals.min_model_count, immortals.max_model_count) == (5, 10)
+        blaster = {w.name: w for w in immortals.weapons}["gauss_blaster"]
+        assert blaster.ap == 1 and blaster.keywords == ("lethal_hits",)
+        # The tesla carbine rides along in data for a future Sustained Hits
+        # lesson but is not in the default loadout.
+        tesla = {w.name: w for w in immortals.weapons}["tesla_carbine"]
+        assert tesla.keywords == ("assault", "sustained_hits_2")
+        assert immortals.default_loadout == ("gauss_blaster",)
+
+    def test_ork_boyz_are_tough_bad_shooters(self) -> None:
+        boyz = load_faction_by_name("orks")["boyz"]
+        assert (boyz.profile.toughness, boyz.profile.save) == (5, 5)
+        shoota = {w.name: w for w in boyz.weapons}["shoota"]
+        assert (shoota.skill, shoota.strength) == (5, 4)
+        assert shoota.keywords == ("rapid_fire_1",)
+        choppa = {w.name: w for w in boyz.weapons}["choppa"]
+        assert (choppa.type, choppa.skill, choppa.ap) == ("melee", 3, 1)
+
+    def test_strike_team_is_a_fixed_ten_of_pure_shooting(self) -> None:
+        team = load_faction_by_name("tau_empire")["strike_team"]
+        assert (team.min_model_count, team.max_model_count, team.default_model_count) == (
+            10, 10, 10,
+        )
+        rifle = {w.name: w for w in team.weapons}["pulse_rifle"]
+        assert (rifle.range, rifle.strength) == (30, 5)
+
+    def test_skitarii_rangers_carry_the_first_invulnerable(self) -> None:
+        rangers = load_faction_by_name("adeptus_mechanicus")["skitarii_rangers"]
+        assert rangers.profile.invulnerable_save == 5
+        assert rangers.profile.save == 4
+        galvanic = {w.name: w for w in rangers.weapons}["galvanic_rifle"]
+        assert galvanic.keywords == ()

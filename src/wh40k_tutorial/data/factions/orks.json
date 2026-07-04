@@ -1,0 +1,53 @@
+{
+  "faction": "orks",
+  "display_name": "Orks",
+  "units": {
+    "boyz": {
+      "display_name": "Boyz",
+      "profile": {
+        "movement": 6,
+        "toughness": 5,
+        "save": 5,
+        "wounds": 1,
+        "leadership": 7,
+        "objective_control": 2
+      },
+      "unit_size": {
+        "min": 10,
+        "max": 20,
+        "default": 10
+      },
+      "weapons": {
+        "shoota": {
+          "display_name": "Shoota",
+          "type": "ranged",
+          "range": 18,
+          "attacks": 2,
+          "skill": 5,
+          "strength": 4,
+          "ap": 0,
+          "damage": 1,
+          "keywords": [
+            "rapid_fire_1"
+          ]
+        },
+        "choppa": {
+          "display_name": "Choppa",
+          "type": "melee",
+          "range": 0,
+          "attacks": 3,
+          "skill": 3,
+          "strength": 4,
+          "ap": 1,
+          "damage": 1,
+          "keywords": []
+        }
+      },
+      "default_loadout": {
+        "shoota": "all"
+      },
+      "abilities": [],
+      "notes": "Bad shooters (BS 5+), surprisingly tough (T5), scary up close (WS 3+ choppas at AP -1). The real default kit is slugga & choppa; we take the any-number shoota option so the shooting tutorial has dice to roll \u2014 the slugga is omitted ([PISTOL] isn't modeled) and the Boss Nob with his gear is omitted. Profile verified 2026-07-04: 10th-codex-current baseline (Wahapedia) confirmed unchanged by the official 11th-edition Faction Pack errata (June 2026)."
+    }
+  }
+}

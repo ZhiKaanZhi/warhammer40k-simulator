@@ -15,8 +15,9 @@ tweaks and after-roll pool adjustments per step, handed between steps through
 generic carry fields (``HitStep.auto_wounds``, ``WoundStep.mortal_wounds``,
 ...) that default to "no ability" values, so a keywordless weapon flows
 through unchanged (ADR 0002). The mortal-wound step at the end resolves
-Devastating Wounds' single-wound packets after normal damage; a weapon
-without it records zeros and mirrors the damage step's final state.
+Devastating Wounds' per-critical mortal packets after normal damage (each
+capped to one model, no spillover — rule 24.10); a weapon without it records
+zeros and mirrors the damage step's final state.
 
 TODO (later phases): ``resolve_melee``, which will reuse
 ``_resolve_attack_sequence`` plus engine-level fight ordering — a new
@@ -109,9 +110,10 @@ class DamageStep:
 
     A model is filled before the next is touched; excess damage on a slain
     model is lost and recorded as ``wasted_damage`` — the teachable overkill
-    signal. Damage never spills between models. (Mortal wounds, which *do*
-    spill, arrive with Devastating Wounds in a later phase on their own
-    track — see ADR 0002 and CONTEXT.md.)
+    signal. Damage never spills between models. (Devastating Wounds mortal
+    wounds arrive in a later phase on their own track and share this
+    one-model, no-spillover behaviour per rule 24.10 — see ADR 0002 and
+    CONTEXT.md.)
     """
 
     damage_per_failed_save: int
@@ -126,11 +128,14 @@ class DamageStep:
 class MortalWoundsStep:
     """Mortal wounds from Devastating Wounds, resolved after normal damage.
 
-    Per the 11th-edition rules (06.02, verified 2026-07-03): mortal wounds
-    bypass every saving throw and resolve one at a time as single-wound
-    packets — the wounded lead model absorbs first, then the walk crosses
-    models until every packet lands or the unit is destroyed, and any excess
-    dies with the unit. (Feel No Pain would roll per packet; not modeled.)
+    Per the 11th-edition rules (Devastating Wounds, 24.10, verified against
+    the Core Rules PDF 2026-07-05): a critical wound bypasses every saving
+    throw and inflicts the weapon's Damage in mortal wounds, but those
+    mortals can damage **at most one model per critical wound** — any beyond
+    that model's remaining wounds are lost, exactly like normal-damage
+    overkill. They do NOT spill to the next model; that is the specific
+    Devastating Wounds exception to the general mortal-wound rule (06.02),
+    which does spill. (Feel No Pain would roll per mortal wound; not modeled.)
     ``models_remaining``/``wounds_remaining_on_lead`` are the defender's
     final state after BOTH normal damage and mortals — the engine's single
     source of truth. A weapon without Devastating Wounds records a count of
@@ -242,7 +247,8 @@ def _resolve_attack_sequence(
         model_count=defender_model_count,
     )
     mortal = _resolve_mortal_wounds(
-        count=wound.mortal_wounds,
+        critical_wounds=wound.diverted_critical_wounds,
+        damage_per_crit=weapon.damage,
         wounds_per_model=defender.profile.wounds,
         wounds_on_lead=damage.wounds_remaining_on_lead,
         model_count=damage.models_remaining,
@@ -369,33 +375,40 @@ def _allocate_damage(
 
 def _resolve_mortal_wounds(
     *,
-    count: int,
+    critical_wounds: int,
+    damage_per_crit: int,
     wounds_per_model: int,
     wounds_on_lead: int,
     model_count: int,
 ) -> MortalWoundsStep:
-    """Inflict mortal wounds one at a time, walking across models (06.02).
+    """Inflict Devastating Wounds mortal wounds, one critical wound at a time (24.10).
 
-    Each packet removes exactly one wound from the current lead model — the
-    wounded model absorbs first by rule, and the lead model is the wounded
-    one in our uniform units — so the walk naturally crosses model
-    boundaries. Packets left over when the unit dies are lost.
+    Each critical wound inflicts ``damage_per_crit`` mortal wounds against a
+    *single* model — the wounded lead model absorbs first, which is the lead
+    in our uniform units — and any of that crit's mortals beyond the model's
+    remaining wounds are lost. This is the one-model cap from rule 24.10:
+    unlike the general mortal-wound rule (06.02), Devastating Wounds mortals
+    do **not** spill to a second model, so a crit's allocation is exactly the
+    normal-damage allocation (fill one model, waste the overkill) minus the
+    saving throw. Crits with no model left to strike are wasted whole.
     """
     models_left = model_count
     current = wounds_on_lead if models_left > 0 else 0
     inflicted = wasted = slain = 0
-    for _ in range(count):
+    for _ in range(critical_wounds):
         if models_left == 0:
-            wasted += 1
+            wasted += damage_per_crit
             continue
-        current -= 1
-        inflicted += 1
+        applied = min(damage_per_crit, current)
+        inflicted += applied
+        wasted += damage_per_crit - applied  # overkill: this crit can't spill onward
+        current -= applied
         if current == 0:
             slain += 1
             models_left -= 1
             current = wounds_per_model if models_left > 0 else 0
     return MortalWoundsStep(
-        count=count,
+        count=critical_wounds * damage_per_crit,
         inflicted=inflicted,
         wasted=wasted,
         models_slain=slain,

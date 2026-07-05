@@ -390,7 +390,8 @@ class TestKeywordAbilitiesInThePipeline:
         assert wound.savable_wounds == wound.wounds - wound.diverted_critical_wounds
         # Saves were rolled only for the non-diverted wounds.
         assert len(result.save.roll.raw_rolls) == wound.savable_wounds
-        # Each diverted critical became Damage-many single-wound packets.
+        # Each diverted critical became Damage-many mortal wounds (capped to
+        # one model per crit; here Damage 2 into 2-wound models, so no waste).
         assert mortal.count == wound.diverted_critical_wounds * weapon.damage
         assert mortal.inflicted + mortal.wasted == mortal.count
         # Mortals landed after normal damage, on the damage step's state.
@@ -421,27 +422,68 @@ class TestKeywordAbilitiesInThePipeline:
 
 
 class TestMortalWoundAllocator:
-    def test_packets_walk_across_models_and_excess_dies_with_the_unit(self) -> None:
-        # 2 models of 2 wounds, lead already on 1: packet 1 fells the lead,
-        # packets 2-3 fell the next, packets 4-5 have nobody left to hurt.
-        step = _resolve_mortal_wounds(count=5, wounds_per_model=2, wounds_on_lead=1, model_count=2)
-        assert (step.inflicted, step.models_slain, step.wasted) == (3, 2, 2)
-        assert step.models_remaining == 0
-        assert step.wounds_remaining_on_lead == 0
+    def test_each_critical_caps_at_one_model_and_wastes_its_overkill(self) -> None:
+        # Three critical wounds, 3 mortals each, into 2-wound models: by rule
+        # 24.10 each crit kills exactly ONE model and its third mortal is lost
+        # — the mortals never spill onward, so three crits fell three models
+        # (not the four-and-a-half that 9 spilling wounds would).
+        step = _resolve_mortal_wounds(
+            critical_wounds=3,
+            damage_per_crit=3,
+            wounds_per_model=2,
+            wounds_on_lead=2,
+            model_count=5,
+        )
+        assert (step.inflicted, step.models_slain, step.wasted) == (6, 3, 3)
+        assert step.models_remaining == 2
+        assert step.wounds_remaining_on_lead == 2
+        assert step.count == 9
 
-    def test_partial_packet_leaves_a_wounded_lead(self) -> None:
-        step = _resolve_mortal_wounds(count=1, wounds_per_model=3, wounds_on_lead=3, model_count=2)
+    def test_a_critical_can_wound_a_model_without_killing_it(self) -> None:
+        step = _resolve_mortal_wounds(
+            critical_wounds=1,
+            damage_per_crit=1,
+            wounds_per_model=3,
+            wounds_on_lead=3,
+            model_count=2,
+        )
         assert (step.inflicted, step.models_slain, step.wasted) == (1, 0, 0)
         assert step.models_remaining == 2
         assert step.wounds_remaining_on_lead == 2
 
-    def test_zero_count_passes_state_through(self) -> None:
-        step = _resolve_mortal_wounds(count=0, wounds_per_model=2, wounds_on_lead=1, model_count=4)
+    def test_successive_crits_chip_the_same_model_until_it_falls(self) -> None:
+        # The one-model cap is *per crit*; a model can still be worn down by
+        # several crits while it lives. Three 1-damage crits fell one 3-wound
+        # model with nothing wasted.
+        step = _resolve_mortal_wounds(
+            critical_wounds=3,
+            damage_per_crit=1,
+            wounds_per_model=3,
+            wounds_on_lead=3,
+            model_count=1,
+        )
+        assert (step.inflicted, step.models_slain, step.wasted) == (3, 1, 0)
+        assert step.models_remaining == 0
+
+    def test_zero_crits_passes_state_through(self) -> None:
+        step = _resolve_mortal_wounds(
+            critical_wounds=0,
+            damage_per_crit=2,
+            wounds_per_model=2,
+            wounds_on_lead=1,
+            model_count=4,
+        )
         assert step.models_remaining == 4
         assert step.wounds_remaining_on_lead == 1
         assert step.count == step.inflicted == step.wasted == 0
 
-    def test_already_destroyed_unit_wastes_everything(self) -> None:
-        step = _resolve_mortal_wounds(count=3, wounds_per_model=2, wounds_on_lead=1, model_count=0)
+    def test_already_destroyed_unit_wastes_every_crit(self) -> None:
+        step = _resolve_mortal_wounds(
+            critical_wounds=3,
+            damage_per_crit=1,
+            wounds_per_model=2,
+            wounds_on_lead=1,
+            model_count=0,
+        )
         assert (step.inflicted, step.wasted) == (0, 3)
         assert step.models_remaining == 0

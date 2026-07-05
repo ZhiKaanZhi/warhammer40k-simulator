@@ -258,34 +258,36 @@ def _damage_inline(result: ShootingResult) -> str:
 def _mortal_inline(result: ShootingResult) -> str:
     m = result.mortal
     weapon = result.attack.weapon
+    crits = result.wound.diverted_critical_wounds
+    if weapon.damage > 1:
+        breakdown = f"{crits} critical {_plural(crits, 'wound')} x {weapon.damage} = {m.count}"
+    else:
+        breakdown = f"{m.count} ({crits} critical {_plural(crits, 'wound')})"
     line = (
         f"Devastating Wounds turns each critical wound into the weapon's Damage in "
-        f"mortal wounds — {m.count} single-wound {_plural(m.count, 'hit')} that no "
-        f"armour or invulnerable save can stop, landing after the normal damage."
+        f"mortal wounds — {breakdown} that no armour or invulnerable save can stop, "
+        f"landing after the normal damage. Each critical wound strikes just one model."
     )
-    if weapon.damage > 1:
-        line = line.replace(
-            "mortal wounds —",
-            f"mortal wounds ({result.wound.diverted_critical_wounds} x {weapon.damage}) —",
-        )
     if m.wasted:
         line += (
-            f" {m.wasted} of them vanished with the unit — mortals never outlive "
-            f"the last model."
+            f" That wasted {m.wasted} mortal {_plural(m.wasted, 'wound')} as overkill: a "
+            f"critical wound's mortals can't carry to a second model, so any past the one "
+            f"they strike are lost — the same overkill rule as normal damage."
         )
     return line
 
 
 _MORTAL_EXPANSION = (
     "Mortal wounds are the game's save-proof damage: nothing rolls against them — "
-    "not armour, not an invulnerable save. They resolve one at a time as "
-    "single-wound packets: the wounded lead model absorbs first, then the walk "
-    "crosses model to model until every packet lands or the unit is destroyed, and "
-    "leftovers vanish with it. That per-packet walk is why mortals, unlike normal "
-    "damage, can chew through several models from one attack. Here they come from "
-    "Devastating Wounds: a critical wound ends that attack early and comes back as "
-    "Damage-many mortal wounds after the volley's normal damage. (In the full "
-    "game, Feel No Pain rolls against each packet — not modeled yet.)"
+    "not armour, not an invulnerable save. Here they come from Devastating Wounds: a "
+    "critical wound (an unmodified 6 to wound) ends that attack early, and after the "
+    "volley's normal damage the target takes the weapon's Damage in mortal wounds "
+    "instead. The catch is allocation. Each critical wound's mortals strike a single "
+    "model, and any left once that model dies are lost — exactly the overkill you saw "
+    "with normal damage. Devastating Wounds is the exception to the usual mortal-wound "
+    "rule: these mortals do not spill to the next model. So a Damage 3 critical against "
+    "a 1-wound model kills one model and wastes two; it never fells three. (In the full "
+    "game, Feel No Pain rolls against each mortal wound — not modeled yet.)"
 )
 
 

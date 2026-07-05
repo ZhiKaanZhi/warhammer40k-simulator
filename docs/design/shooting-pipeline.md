@@ -109,7 +109,7 @@ against the official 11th Core Rules PDF on **2026-07-03** (see *Primary-source 
 | Sustained + Lethal on one crit | ✅ both fire off the same unmodified 6; Sustained's *extra* hits are **not** crits (only the natural 6 auto-wounds) | Confirms "read immutable `critical_hits`" (ADR 0002); Sustained adds *normal* hits. |
 | Lethal Hits | ✅ auto-wounds (skips wound roll); **saves still apply** | Matches the `auto_wounds` bucket. |
 | Variable Attacks | ✅ **per weapon/model** at the Core Rules level: attack dice are gathered weapon by weapon (04.03), and the re-roll rules treat the roll that determines a weapon's attack count as belonging to that one weapon. The dedicated *Random Characteristics* entry lives in the Rules Commentary, **which 11th has not published yet** (checked 2026-07-03) — re-check its exact wording when it appears | When variable attacks are implemented, `AttackStep` must record one roll per model. Shipped phase-3 code deliberately defers `DiceExpr` attacks (loader rejects them), so **no code change today**. |
-| Damage no-spillover | ✅ excess on a slain model is lost; one-at-a-time — **but mortal wounds are the exception (they spill over)** | Matches `wasted`. Mortal-wound path needs a *separate, spilling* allocation. |
+| Damage no-spillover | ✅ excess on a slain model is lost; one-at-a-time. General mortal wounds (06.02) *do* spill, **but Devastating Wounds mortals (24.10) are capped at one model per critical wound — no spillover** | Matches `wasted`. Mortal-wound path is separate but *non-spilling*: each crit's Damage-many mortals fill one model, overkill wasted. |
 | Modifier cap | ✅ ±1 net on hit/wound. Saves: **+1 improvement cap only**, no symmetric −1 (worsening is AP, uncapped) | Clamp save *improvements* to +1; never clamp AP. |
 | Re-rolls | ✅ once only; "re-roll failed" ⊃ "re-roll 1s" | Confirms "most generous" combination (ADR 0002). |
 | AP | ✅ modifies save, uncapped, ignores invuln | Confirms ADR 0003. |
@@ -126,14 +126,20 @@ normal damage, no spillover" → **11th reverted to mortal wounds.** Since the p
 - **Confirmed (24.10):** a critical wound (unmodified 6, or the Anti-X threshold) ends the attack sequence for
   that attack — no save, no normal damage for it — and instead the target *unit* suffers mortal wounds equal to
   the weapon's Damage characteristic, inflicted **after** the normal damage of those attacks has been resolved.
-- **Confirmed mortal-wound allocation (06.02):** mortal wounds resolve **one at a time as single-wound packets**.
-  Each packet picks a model by a fixed priority (an already-wounded non-character first, then any non-character,
-  then a wounded character, then any character) and removes exactly **1 wound**; the loop keeps walking across
-  models until every mortal wound is inflicted or the unit is destroyed, and any excess dies with the unit. So
-  the familiar "mortals spill over" is really *per-wound allocation that naturally crosses models* — there are no
-  Damage-sized chunks to carry. Feel No Pain (24.12) rolls per wound lost, so it applies to each mortal wound.
+- **Corrected mortal-wound allocation (24.10, re-read 2026-07-05):** Devastating Wounds mortals are **capped at one
+  model per critical wound**. Each critical wound's Damage-many mortals are allocated to a single model (the
+  already-wounded lead first, which is the lead in our uniform units); if that is more than the model's remaining
+  wounds, the model dies and the **overkill is lost** — the mortals do **not** carry to a second model. This is the
+  same one-model, waste-the-overkill behaviour as normal damage; the only difference is no save was rolled.
+  ⚠️ This corrects the 2026-07-03 note, which described the *general* mortal-wound rule (06.02 — mortals crossing
+  models one wound at a time). 06.02 does spill, but §24.10 makes Devastating Wounds (and Hazardous) the explicit
+  exception, and Devastating Wounds is our only mortal source. GW's own example: a Damage-3 critical against a
+  1-wound (per model) Intercessor Squad kills one model and wastes two — it does not fell three. Feel No Pain
+  (24.12) would roll per mortal wound (not modelled yet).
 - Unchanged conclusion: this is **not** the `no_save_wounds` save-step bucket (that was the end-of-10th shape) —
-  it needs its own mortal-wound resolution path alongside the normal save/damage steps.
+  it needs its own mortal-wound resolution path alongside the normal save/damage steps. In code that path is now
+  structurally identical to normal-damage allocation (one packet per critical wound, capped to one model), just
+  skipping the save roll.
 
 Two phase-7 design notes picked up from the same read: **Lethal Hits (24.23) is now a per-attack *choice*** — the
 attacker may decline the auto-wound so the attack can still roll for a critical wound and trigger Devastating

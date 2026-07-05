@@ -148,3 +148,17 @@ class TestAbilityScenarioEndToEnd:
         assert "Lethal Hits let" in out                  # the narrator's sentence
         assert "still gets saves" in out                 # ...and its saves caveat
         assert "auto-wound is not an auto-kill" in out   # the outro's core lesson
+
+    def test_sustained_hits_override_arms_the_tesla_and_teaches(self) -> None:
+        result = CliRunner().invoke(
+            main, ["play", "05_sustained_hits", "--seed", "5"], input="\n\n"
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+        # The override visibly swapped the gun: tesla offered, gauss absent.
+        assert "Weapon: Tesla Carbine" in out
+        assert "Gauss Blaster" not in out
+        # The fact line does the sustained arithmetic in the open (seed 5, turn 1).
+        assert "24 hit (14 rolled + 10 sustained from 5 crits)" in out
+        assert "Sustained Hits kicked in" in out         # the narrator's sentence
+        assert "not automatic wounds" in out             # the outro's core lesson

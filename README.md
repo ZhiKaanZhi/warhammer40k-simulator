@@ -6,7 +6,7 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**v1 complete (build phases 1–8).** Engine and content are both in: dice primitives, the validated loaders, the full shooting pipeline with the keyword-ability framework (Sustained Hits, Lethal Hits, Devastating Wounds with true mortal-wound resolution), the Rich interface, the scenario runner, and the narrator — plus six verified factions and a four-scenario teaching ladder. `wh40k play` walks a complete beginner from the bare combat sequence (First Shots) through the wound chart (Tougher Targets) and armour/invulnerable saves (Piercing Armour) to their first weapon ability (Lethal Hits), with every roll explained and deeper rules on demand. Further scenarios are pure data work; the heuristic AI opponent is the headline v2 feature. See `CLAUDE.md` for the architecture and build order.
+**v1 complete (build phases 1–8).** Engine and content are both in: dice primitives, the validated loaders, the full shooting pipeline with the keyword-ability framework (Sustained Hits, Lethal Hits, Devastating Wounds with true mortal-wound resolution), the Rich interface, the scenario runner, and the narrator — plus six verified factions and a five-scenario teaching ladder. `wh40k play` walks a complete beginner from the bare combat sequence (First Shots) through the wound chart (Tougher Targets) and armour/invulnerable saves (Piercing Armour) to the critical-hit weapon abilities (Lethal Hits, then Sustained Hits via a per-scenario loadout override), with every roll explained and deeper rules on demand. Further scenarios are pure data work; the heuristic AI opponent is the headline v2 feature. See `CLAUDE.md` for the architecture and build order.
 
 ## Quick start
 

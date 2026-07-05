@@ -1,0 +1,45 @@
+{
+  "id": "05_sustained_hits",
+  "title": "Sustained Hits",
+  "teaches": "a critical hit can multiply: Sustained Hits turns each natural 6 to hit into extra ordinary hits on top of itself.",
+  "player_side": "attacker",
+  "intro": "Your Necron Immortals have set aside their gauss blasters and taken up tesla carbines for this battle — crackling arc-casters that reward lucky shots. Tesla carbines carry SUSTAINED HITS 2: every natural 6 on the hit roll — a critical hit — adds 2 extra ordinary hits to the pool on top of the hit it already scored. A mob of twenty Ork Boyz is charging your line; ten Immortals fire two shots each, so watch the HIT line: whenever sixes come up, the hits counted will be more than the dice that passed.",
+  "sides": {
+    "attacker": {
+      "faction": "necrons",
+      "units": [
+        {
+          "id": "immortals_1",
+          "datasheet": "immortals",
+          "position": [2, 4],
+          "models": 10,
+          "loadout": { "tesla_carbine": "all" }
+        }
+      ]
+    },
+    "defender": {
+      "faction": "orks",
+      "units": [
+        {
+          "id": "boyz_1",
+          "datasheet": "boyz",
+          "position": [9, 4],
+          "models": 20
+        }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Fire the first volley. The HIT line will do the arithmetic in the open: hits rolled, plus the sustained bonus from any critical, equals the pool that goes on to wound."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Fire again — and notice the bonus hits are ordinary hits. Only the natural 6 itself is the critical; the two hits it brings along still have to roll to wound (4+ here, Strength 5 against the Boyz' Toughness 5) and the Orks still take their 5+ save against every one."
+    }
+  ],
+  "outro": "That is the second ability fed by the same trigger. A natural 6 to hit is a critical hit, and Sustained Hits 2 grows each one into two additional ordinary hits — more dice carried into the wound roll, not automatic wounds. Compare it with Lethal Hits from the last scenario: the same critical, spent differently — Lethal skips the wound roll for that one attack, Sustained multiplies the attack instead. Ask 'why hit' after a volley to read the full rule. One critical-hit ability remains: Devastating Wounds, which turns critical WOUNDS into damage that ignores saves — that one is waiting for a scenario of its own."
+}

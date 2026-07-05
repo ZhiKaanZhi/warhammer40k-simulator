@@ -34,7 +34,12 @@ Scenarios live at `src/wh40k_tutorial/data/scenarios/<NN>_<slug>.json`. Number t
     "attacker": {
       "faction": "space_marines",
       "units": [
-        { "datasheet": "intercessor_squad", "position": [3, 4], "models": 5 }
+        {
+          "datasheet": "intercessor_squad",
+          "position": [3, 4],
+          "models": 5,
+          "loadout": { "bolt_rifle": "all" }
+        }
       ]
     },
     "defender": {
@@ -65,6 +70,7 @@ Field reference:
 - **player_side** — `"attacker"` or `"defender"`. Determines which side uses `HumanStrategy`; the other uses `ScriptedStrategy`.
 - **sides.*.units[].datasheet** — must match a key in the faction's JSON file. If it doesn't exist, add it first using the `add-unit` skill.
 - **sides.*.units[].position** — `[x, y]` on the battlefield grid (currently 12 wide × 8 tall, 0-indexed from top-left).
+- **sides.*.units[].loadout** — *optional* per-scenario loadout override. Same shape and rules as a datasheet's `default_loadout` (weapon keys that exist on the datasheet, `"all"` coverage only in v1), and it must include at least one ranged weapon. Omit it to use the datasheet's default. This is how a scenario arms a unit's wargear alternative — `05_sustained_hits` swaps the Immortals' gauss blasters for tesla carbines this way. Scripted actions and the player's weapon menu both honor it; a script firing a weapon outside the effective loadout fails at load time.
 - **turns** — explicit list of turns. v1 only models the shooting phase, so most scenarios are one or two `"shooting"` entries.
 - **turns[].actions** — optional. The fixed shots `ScriptedStrategy` replays, in order, when the *non-player* side acts: `attacker` is a unit id on the active side, `weapon` a ranged-weapon key on its datasheet, `target` a unit id on the other side (the loader validates all three). Omit it on turns the player acts in — the human decides. A scripted side that runs out of actions while it still has eligible shooters fails loudly at runtime, on purpose: script every shot you expect it to take.
 - **narrate_before / outro** — write in our own words. Don't quote rulebooks.
@@ -73,7 +79,7 @@ Field reference:
 
 1. **Decide the concept.** Write the `teaches` sentence first. If it's vague, stop and sharpen it.
 
-2. **Pick the matchup.** What units make the concept maximally visible? If the units don't exist yet in `data/factions/`, use the `add-unit` skill to add them. If you need to verify a unit's real profile, use the `rules-researcher` agent.
+2. **Pick the matchup.** What units make the concept maximally visible? If the units don't exist yet in `data/factions/`, use the `add-unit` skill to add them. If you need to verify a unit's real profile, use the `rules-researcher` agent. If the lesson needs a unit's *alternative* wargear rather than its default (a keyword only the option carries, say), keep the datasheet's `default_loadout` as-is and equip the option with a per-scenario `loadout` override instead.
 
 3. **Write the JSON.** Use an existing scenario as a template. Position units so the relevant weapons are in range.
 

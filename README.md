@@ -6,9 +6,53 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**v1 complete (build phases 1–8).** Engine and content are both in: dice primitives, the validated loaders, the full shooting pipeline with the keyword-ability framework (Sustained Hits, Lethal Hits, Devastating Wounds with true mortal-wound resolution), the Rich interface, the scenario runner, and the narrator — plus six verified factions and a five-scenario teaching ladder. `wh40k play` walks a complete beginner from the bare combat sequence (First Shots) through the wound chart (Tougher Targets) and armour/invulnerable saves (Piercing Armour) to the critical-hit weapon abilities (Lethal Hits, then Sustained Hits via a per-scenario loadout override), with every roll explained and deeper rules on demand. Further scenarios are pure data work; the heuristic AI opponent is the headline v2 feature. See `CLAUDE.md` for the architecture and build order.
+**v1 complete (build phases 1–8).** Engine and content are both in: dice primitives, the validated loaders, the full shooting pipeline with the keyword-ability framework (Sustained Hits, Lethal Hits, Devastating Wounds with true mortal-wound resolution), the Rich interface, the scenario runner, and the narrator — plus six verified factions and a five-scenario teaching ladder. `wh40k play` walks a complete beginner from the bare combat sequence (First Shots) through the wound chart (Tougher Targets) and armour/invulnerable saves (Piercing Armour) to the critical-hit weapon abilities (Lethal Hits, then Sustained Hits via a per-scenario loadout override), with every roll explained and deeper rules on demand. **The v2 headliner is in:** a heuristic AI opponent that picks each shot by expected damage, and `06_return_fire` — the first two-sided scenario, where the T'au shoot back and the player watches target priority happen to them. Further scenarios are pure data work. See `CLAUDE.md` for the architecture and build order.
 
-## Quick start
+## Play it on your machine (nothing assumed)
+
+You need **Python 3.11 or newer** and this folder of code. Step by step:
+
+1. **Install Python** from https://www.python.org/downloads/ and run the installer.
+   On Windows, tick **"Add python.exe to PATH"** on the first installer screen — it matters.
+   (macOS/Linux may already have it: `python3 --version` in a terminal should say 3.11+.)
+
+2. **Get the code.** Either `git clone https://github.com/ZhiKaanZhi/warhammer40k-simulator`,
+   or press **Code → Download ZIP** on the GitHub page and unzip it.
+
+3. **Open a terminal in the project folder.**
+   Windows: Start menu → type `powershell` → Enter, then `cd` to the folder
+   (e.g. `cd C:\Users\you\warhammer40k-simulator`). macOS/Linux: any terminal, then `cd` likewise.
+
+4. **Install the game** (one time).
+   - Windows: `py -m pip install -e .`
+   - macOS/Linux (the virtual environment avoids the "externally managed environment" error):
+
+     ```bash
+     python3 -m venv .venv
+     source .venv/bin/activate
+     pip install -e .
+     ```
+
+     Run `source .venv/bin/activate` again whenever you open a new terminal here.
+
+5. **Play.**
+
+   ```bash
+   wh40k list                   # see the tutorial scenarios, in order
+   wh40k play 01_first_shots    # start at the beginning
+   ```
+
+   Menus are numbered — type the number and press Enter. After each volley, the
+   `Deeper rule?` prompt accepts a step name (`hit`, `wound`, `save`, ...) to print the
+   full rule behind it, or just Enter to carry on. Add `--seed 5` to any `play` command
+   for a repeatable battle.
+
+If `wh40k` isn't recognized, run it as `python -m wh40k_tutorial.cli list`
+(Windows: `py -m wh40k_tutorial.cli list`). To update later, `git pull` in the folder
+(or re-download the ZIP) — the editable install picks changes up automatically; if a
+new version won't start, re-run the install command from step 4.
+
+## Quick start (developers)
 
 ```bash
 pip install -e ".[dev]"
@@ -24,7 +68,7 @@ wh40k --help                 # CLI help
 - **Six factions, verified against the current rules:** Space Marines, Tyranids, Necrons, Orks, T'au Empire, Adeptus Mechanicus — each picked to demonstrate a different playstyle, every profile checked against the 10th-codex baseline plus the official 11th-edition Faction Pack errata.
 - **Scenario-driven tutorials.** Each scenario teaches one concept (hit/wound/save/damage, AP, target priority, etc.).
 - **Rich-based TUI.** Battlefield grid, action log, contextual rules panel — all in your terminal.
-- **Extensible by design.** The strategy interface that currently drives scripted opponents is the same one a heuristic AI will plug into later.
+- **Extensible by design.** Scripted opponents, the human player, and the heuristic AI all sit behind one strategy interface; scenarios choose their opponent with a single `opponent_strategy` field.
 
 ## Out of scope for v1
 

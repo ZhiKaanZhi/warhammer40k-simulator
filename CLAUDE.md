@@ -1,12 +1,12 @@
 # warhammer40k-simulator
 
-An interactive **terminal tutorial** that teaches Warhammer 40,000 (11th edition) by playing it. The player makes decisions for one side; the other side is currently scripted but the architecture is designed so a heuristic AI can drop in later without changing scenarios.
+An interactive **terminal tutorial** that teaches Warhammer 40,000 (11th edition) by playing it. The player makes decisions for one side; the other side is scripted in the early teaching ladder and, from scenario 06 on, can be the **heuristic AI** — an expected-damage shot picker behind the same `Strategy` protocol, so scenarios choose their opponent without any engine change.
 
 The goal is **learning**, not rules-accurate simulation. We narrate every dice roll and explain the rule that drove it. Accuracy of the rules we *do* model matters; completeness of the rule set does not.
 
 ## Status
 
-All eight build phases are implemented and tested — **v1 is complete**: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline with the keyword-hook framework (Sustained Hits, Lethal Hits, Devastating Wounds with its mortal-wound track), the Rich UI shell, the scenario runner, the narrator, and the content: six verified factions and a five-scenario teaching ladder (`01_first_shots` → `02_tougher_targets` → `03_piercing_armour` → `04_lethal_hits` → `05_sustained_hits`). Adding scenarios or units is now pure data work via the `.claude/skills`. The heuristic AI opponent is the headline post-v1 feature. See "Build order" below.
+All eight build phases are implemented and tested — **v1 is complete**: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline with the keyword-hook framework (Sustained Hits, Lethal Hits, Devastating Wounds with its mortal-wound track), the Rich UI shell, the scenario runner, the narrator, and the content: six verified factions and a six-scenario teaching ladder (`01_first_shots` → `02_tougher_targets` → `03_piercing_armour` → `04_lethal_hits` → `05_sustained_hits` → `06_return_fire`). **Phase 9 — the heuristic AI opponent — is in**: `HeuristicStrategy` greedily picks the shot with the highest expected damage (estimator in `core/expected.py`, Monte Carlo-tested against the pipeline), and `06_return_fire` is the first two-sided scenario, with the opponent chosen per scenario via `opponent_strategy`. Adding scenarios or units is pure data work via the `.claude/skills`. See "Build order" below.
 
 ## Tech stack
 
@@ -44,13 +44,15 @@ src/wh40k_tutorial/
 │   ├── models.py   # ✅ Implemented. Datasheet dataclasses + validating JSON loader.
 │   ├── combat.py   # ✅ Implemented. The hit → wound → save → damage → mortals pipeline.
 │   ├── abilities.py# ✅ Implemented. Keyword hooks (ADR 0002): Sustained/Lethal/Devastating.
+│   ├── expected.py # ✅ Implemented. Expected-damage estimator mirroring the pipeline (Monte Carlo-tested).
 │   └── scenario.py # ✅ Implemented. Scenario dataclasses + validating JSON loader.
 ├── engine.py       # ✅ Implemented. Runtime battle state + the turn loop (ADR 0005).
 ├── narrator.py     # ✅ Implemented. Pure formatter: the rule behind each step + "why?" expansions (ADR 0001).
 ├── strategies/     # How a side picks its actions each turn
 │   ├── base.py     # ✅ Strategy protocol + frozen GameState snapshots — extension point for AI
 │   ├── human.py    # ✅ Implemented. Prompts the player via Click menus.
-│   └── scripted.py # ✅ Implemented. Replays the scenario's scripted actions.
+│   ├── scripted.py # ✅ Implemented. Replays the scenario's scripted actions.
+│   └── heuristic.py# ✅ Implemented. The AI opponent: greedy expected-damage shot picking.
 ├── data/
 │   ├── factions/   # JSON unit datasheets (one file per faction)
 │   └── scenarios/  # JSON scenario definitions
@@ -72,7 +74,7 @@ The shooting sequence is `attacks → hits → wounds → saves → damage`. Eac
 
 ### 2. Strategy protocol
 
-A `Strategy` is anything that, given the current game state, returns the next action for a side. We currently have `HumanStrategy` (prompts the player) and `ScriptedStrategy` (replays a fixed sequence from the scenario file, used for the AI side in tutorials). A future `HeuristicStrategy` will score candidate actions using the same combat math the engine uses for dice resolution, and slot in without any other change. **Do not put player-input logic inside the engine.** It goes through this protocol.
+A `Strategy` is anything that, given the current game state, returns the next action for a side. We have `HumanStrategy` (prompts the player), `ScriptedStrategy` (replays a fixed sequence from the scenario file — the opponent of the early tutorials), and `HeuristicStrategy` (the AI: scores every legal shot by expected damage — `core/expected.py`, the analytic mirror of the combat pipeline, Monte Carlo-tested against it — capped at the target's remaining wounds, deterministic tie-break by scenario order). Scenarios pick their opponent with the `opponent_strategy` field; it slotted in with zero engine change, exactly as this section always promised. **Do not put player-input logic inside the engine.** It goes through this protocol.
 
 ## Build order
 
@@ -87,7 +89,7 @@ Each phase is independently shippable. Don't move on until the previous one has 
 7. **Keyword hooks** ✅ done — `core/abilities.py` implements ADR 0002's per-step hook framework (before-roll tweaks with pipeline-owned sum-clamp-and-best-re-roll combination; after-roll pool adjustments) and the first three abilities: Sustained Hits X, Lethal Hits (auto-wound accepted by v1 policy inside the hook), and Devastating Wounds with the full mortal-wound resolution step (single-wound packets after normal damage). Other canonical keywords still load, validate, and stay inert.
 8. **More scenarios + factions** ✅ done — six factions (Space Marines, Tyranids, Necrons, Orks, T'au Empire, Adeptus Mechanicus; seven units), every profile verified against the 10th-codex baseline plus the official 11th Faction Pack errata; plus the scenario ladder `02_tougher_targets` (wound chart by contrast), `03_piercing_armour` (AP vs the invulnerable floor), `04_lethal_hits` (the first ability), `05_sustained_hits` (the second critical-hit ability, armed through a per-scenario **loadout override** — scenarios can swap a unit onto its wargear alternative without touching the datasheet's default; see the add-scenario skill). Further content is pure data work via the add-unit / add-scenario skills.
 
-Only *after* phase 8 do we consider the heuristic AI opponent. Don't be tempted earlier — `ScriptedStrategy` is enough for tutorials and forces the engine to stay clean.
+9. **Heuristic AI opponent** ✅ done — held until after phase 8 exactly as planned (`ScriptedStrategy` kept the engine honest first): `core/expected.py` estimates a volley's mean damage with the pipeline's own targets and keyword semantics and is tested against `resolve_shooting`'s Monte Carlo mean; `strategies/heuristic.py` greedily takes the best capped-expected-damage shot; scenarios opt in with `opponent_strategy: "heuristic"`, and `06_return_fire` — the first two-sided scenario — teaches the enemy's target-priority arithmetic by letting the player feel it.
 
 ## Code conventions
 

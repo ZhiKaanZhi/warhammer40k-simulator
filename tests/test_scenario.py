@@ -135,13 +135,14 @@ class TestValidScenario:
 
 
 class TestPackagedScenarios:
-    def test_all_five_scenarios_are_listed(self) -> None:
+    def test_all_six_scenarios_are_listed(self) -> None:
         assert [s.scenario_id for s in available_scenarios()] == [
             "01_first_shots",
             "02_tougher_targets",
             "03_piercing_armour",
             "04_lethal_hits",
             "05_sustained_hits",
+            "06_return_fire",
         ]
 
     def test_tougher_targets_offers_two_toughness_values(self) -> None:
@@ -170,6 +171,19 @@ class TestPackagedScenarios:
         assert "sustained_hits_2" in tesla.keywords
         assert scenario.player_side == "attacker"
         assert len(scenario.turns) == 2
+
+    def test_return_fire_is_the_first_two_sided_scenario(self) -> None:
+        scenario = load_scenario_by_id("06_return_fire")
+        assert scenario.opponent_strategy == "heuristic"
+        assert scenario.defender.faction == "tau_empire"
+        assert len(scenario.attacker.units) == 2
+        assert [t.active_side for t in scenario.turns] == [
+            "attacker",
+            "defender",
+            "attacker",
+            "defender",
+        ]
+        assert all(t.actions == () for t in scenario.turns)
 
     def test_first_shots_loads_by_id(self) -> None:
         scenario = load_scenario_by_id("01_first_shots")
@@ -398,3 +412,51 @@ class TestLoadoutOverride:
         ]
         (action,) = _load(tmp_path, data).turns[0].actions
         assert action.weapon == "tesla_carbine"
+
+
+# ---------------------------------------------------------------------------
+# The opponent_strategy field
+# ---------------------------------------------------------------------------
+
+
+class TestOpponentStrategy:
+    def test_defaults_to_scripted(self, tmp_path: Path) -> None:
+        assert _load(tmp_path, _base()).opponent_strategy == "scripted"
+
+    def test_heuristic_is_accepted(self, tmp_path: Path) -> None:
+        data = _base()
+        data["opponent_strategy"] = "heuristic"
+        assert _load(tmp_path, data).opponent_strategy == "heuristic"
+
+    def test_unknown_strategy_rejected(self, tmp_path: Path) -> None:
+        data = _base()
+        data["opponent_strategy"] = "psychic"
+        with pytest.raises(ScenarioDataError, match="opponent_strategy"):
+            _load(tmp_path, data)
+
+    def test_heuristic_rejects_scripted_actions_for_the_opponent(
+        self, tmp_path: Path
+    ) -> None:
+        data = _base()
+        data["opponent_strategy"] = "heuristic"
+        data["turns"].append(
+            {
+                "phase": "shooting",
+                "active_side": "defender",
+                "actions": [
+                    {"attacker": "termagants_1", "weapon": "fleshborer", "target": "marines_1"}
+                ],
+            }
+        )
+        with pytest.raises(ScenarioDataError, match="contradict"):
+            _load(tmp_path, data)
+
+    def test_heuristic_allows_player_side_actions(self, tmp_path: Path) -> None:
+        # Actions on the *player's* turns are dead data but not a
+        # contradiction — only the opponent's script conflicts with the AI.
+        data = _base()
+        data["opponent_strategy"] = "heuristic"
+        data["turns"][0]["actions"] = [
+            {"attacker": "marines_1", "weapon": "bolt_rifle", "target": "termagants_1"}
+        ]
+        assert _load(tmp_path, data).opponent_strategy == "heuristic"

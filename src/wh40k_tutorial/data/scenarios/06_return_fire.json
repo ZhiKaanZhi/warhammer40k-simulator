@@ -1,0 +1,61 @@
+{
+  "id": "06_return_fire",
+  "title": "Return Fire",
+  "teaches": "battles are two-sided: after your shooting phase the enemy takes one — and this opponent aims wherever its expected damage is highest.",
+  "player_side": "attacker",
+  "opponent_strategy": "heuristic",
+  "intro": "Until now your targets have stood and taken it. No longer: a T'au Strike Team holds the far ridge, and after your shooting phase comes theirs. You field two Necron units — ten Warriors on a 4+ save, five Immortals on tougher frames behind a 3+ — and the T'au commander is no script. Before every shot it weighs its options: for each possible target it works out the damage a volley should average — chance to hit, times chance to wound, times chance the save fails — and fires where that number is biggest. Hurt the T'au on your turn, then watch where the return fire lands.",
+  "sides": {
+    "attacker": {
+      "faction": "necrons",
+      "units": [
+        {
+          "id": "warriors_1",
+          "datasheet": "necron_warriors",
+          "position": [2, 2],
+          "models": 10
+        },
+        {
+          "id": "immortals_1",
+          "datasheet": "immortals",
+          "position": [2, 6],
+          "models": 5
+        }
+      ]
+    },
+    "defender": {
+      "faction": "tau_empire",
+      "units": [
+        {
+          "id": "strike_team_1",
+          "datasheet": "strike_team",
+          "position": [9, 4],
+          "models": 10
+        }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Your shooting phase. Both of your units get to fire — pick who shoots first. Every Fire Warrior you drop now is a pulse rifle missing from the volley coming back."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "defender",
+      "narrate_before": "Now the T'au answer. Their Strength 5 rifles wound your Toughness 4 Warriors on 3+ but your Toughness 5 Immortals only on 4+, and the Warriors' 4+ armour is easier to beat than the Immortals' 3+. Multiply it out and a volley into the Warriors should average roughly double the damage — so watch where the commander points its guns."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Your turn again. The T'au line is thinner now — and thinner means less expected damage when they answer, because every volley is guns times chances."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "defender",
+      "narrate_before": "Whatever remains of the Strike Team fires back. Same calculation, fewer rifles: if the softer target still stands, expect the guns to stay on it."
+    }
+  ],
+  "outro": "That was your first two-sided battle, and your first real opponent. It never rolled a die to decide — it multiplied them: attacks, times the chance to hit, times the chance to wound, times the chance your save fails, for every target it could see, then fired at the biggest answer. Against Strength 5, your Toughness 4 Warriors on a 4+ save simply lose more wounds per volley than Toughness 5 Immortals behind a 3+, so the Warriors drew the fire. That arithmetic — expected damage — is the same one you can run in your own head when picking targets, and it is how this opponent will fight you from here on."
+}

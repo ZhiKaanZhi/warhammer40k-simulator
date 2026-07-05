@@ -149,6 +149,19 @@ class TestAbilityScenarioEndToEnd:
         assert "still gets saves" in out                 # ...and its saves caveat
         assert "auto-wound is not an auto-kill" in out   # the outro's core lesson
 
+    def test_return_fire_ai_targets_the_softer_unit(self) -> None:
+        result = CliRunner().invoke(
+            main,
+            ["play", "06_return_fire", "--seed", "11"],
+            input="1\n\n\n\n1\n\n\n\n",
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+        assert "the defender acts" in out                # the enemy took a turn
+        assert "Strike Team fires Pulse Rifle at Necron Warriors" in out
+        assert "Strike Team fires Pulse Rifle at Immortals" not in out
+        assert "the Warriors drew the fire" in out       # the outro's core lesson
+
     def test_sustained_hits_override_arms_the_tesla_and_teaches(self) -> None:
         result = CliRunner().invoke(
             main, ["play", "05_sustained_hits", "--seed", "5"], input="\n\n"

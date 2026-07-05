@@ -47,10 +47,49 @@ You need **Python 3.11 or newer** and this folder of code. Step by step:
    full rule behind it, or just Enter to carry on. Add `--seed 5` to any `play` command
    for a repeatable battle.
 
-If `wh40k` isn't recognized, run it as `python -m wh40k_tutorial.cli list`
-(Windows: `py -m wh40k_tutorial.cli list`). To update later, `git pull` in the folder
-(or re-download the ZIP) — the editable install picks changes up automatically; if a
-new version won't start, re-run the install command from step 4.
+If `wh40k` isn't recognized, you can always run it the long way — `python -m wh40k_tutorial.cli list`
+(Windows: `py -m wh40k_tutorial.cli list`) — and the section right below makes the short
+form work. To update later, `git pull` in the folder (or re-download the ZIP) — the
+editable install picks changes up automatically; if a new version won't start, re-run
+the install command from step 4.
+
+### If `wh40k` isn't recognized (Windows)
+
+The install worked — PowerShell just doesn't know about Python's `Scripts` folder,
+where the `wh40k` command lives. That is exactly the **"Add python.exe to PATH"**
+checkbox from step 1. You can play immediately regardless:
+
+```powershell
+py -m wh40k_tutorial.cli play 01_first_shots
+```
+
+To make the short `wh40k` form work, pick either fix, then **close and reopen
+PowerShell** (an open window never sees PATH changes):
+
+- **With the installer:** run the Python installer from step 1 again → **Modify** →
+  Next → tick **"Add Python to environment variables"** → Install.
+- **By hand, in PowerShell:**
+
+  ```powershell
+  $scripts = py -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','User') + ';' + $scripts, 'User')
+  ```
+
+On macOS/Linux the same symptom means the virtual environment isn't active in this
+terminal — run `source .venv/bin/activate` again.
+
+### Uninstalling completely
+
+The game keeps everything inside its own folder — no save files, no settings, no
+registry entries anywhere else — so removal is two steps:
+
+1. `py -m pip uninstall wh40k-tutorial` and answer `y` (macOS/Linux outside a venv:
+   `pip uninstall wh40k-tutorial`). This removes the `wh40k` command. If you installed
+   inside a virtual environment, skip this — deleting the folder takes the venv with it.
+2. Delete the project folder.
+
+If you installed Python only for this and want it gone too: Windows → Settings →
+Apps → Python 3.x → Uninstall (macOS/Linux: however you installed it).
 
 ## Quick start (developers)
 

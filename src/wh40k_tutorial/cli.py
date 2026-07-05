@@ -36,6 +36,7 @@ from wh40k_tutorial.core.scenario import (
 from wh40k_tutorial.engine import BattleState, EngineError, VolleyEvent, run_scenario
 from wh40k_tutorial.narrator import StepNarration, narrate_volley
 from wh40k_tutorial.strategies.base import Strategy
+from wh40k_tutorial.strategies.heuristic import HeuristicStrategy
 from wh40k_tutorial.strategies.human import HumanStrategy
 from wh40k_tutorial.strategies.scripted import (
     ScriptedStrategy,
@@ -129,9 +130,14 @@ def play(scenario_id: str, seed: int | None) -> None:
 
     console = Console()
     opponent = opposing_side(scenario.player_side)
+    opponent_strategy: Strategy = (
+        HeuristicStrategy()
+        if scenario.opponent_strategy == "heuristic"
+        else ScriptedStrategy(scripted_actions_for(scenario, opponent))
+    )
     strategies: dict[str, Strategy] = {
         scenario.player_side: HumanStrategy(),
-        opponent: ScriptedStrategy(scripted_actions_for(scenario, opponent)),
+        opponent: opponent_strategy,
     }
 
     click.echo(f"\n=== {scenario.title} ===")

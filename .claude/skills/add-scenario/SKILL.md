@@ -28,6 +28,7 @@ Scenarios live at `src/wh40k_tutorial/data/scenarios/<NN>_<slug>.json`. Number t
   "id": "01_first_shots",
   "title": "First Shots",
   "teaches": "the four-step combat sequence: hit → wound → save → damage",
+  "opponent_strategy": "scripted",
   "intro": "Plain-text intro shown before the battle begins. 2-4 sentences. Tell the player what concept they're about to learn and what to watch for.",
   "player_side": "attacker",
   "sides": {
@@ -67,7 +68,8 @@ Field reference:
 
 - **id** — file name without extension. Stable identifier used in the CLI (`wh40k play 01_first_shots`).
 - **teaches** — one sentence stating the single concept. If you can't say it in one sentence, the scenario is doing too much.
-- **player_side** — `"attacker"` or `"defender"`. Determines which side uses `HumanStrategy`; the other uses `ScriptedStrategy`.
+- **player_side** — `"attacker"` or `"defender"`. Determines which side uses `HumanStrategy`.
+- **opponent_strategy** — *optional*, how the non-player side is driven: `"scripted"` (default — it replays the `actions` lists in its turns) or `"heuristic"` (the expected-damage AI picks its own shots; see `strategies/heuristic.py`). With `"heuristic"`, `actions` on the opponent's turns are a contradiction and the loader rejects them; the player's turns never need actions either way.
 - **sides.*.units[].datasheet** — must match a key in the faction's JSON file. If it doesn't exist, add it first using the `add-unit` skill.
 - **sides.*.units[].position** — `[x, y]` on the battlefield grid (currently 12 wide × 8 tall, 0-indexed from top-left).
 - **sides.*.units[].loadout** — *optional* per-scenario loadout override. Same shape and rules as a datasheet's `default_loadout` (weapon keys that exist on the datasheet, `"all"` coverage only in v1), and it must include at least one ranged weapon. Omit it to use the datasheet's default. This is how a scenario arms a unit's wargear alternative — `05_sustained_hits` swaps the Immortals' gauss blasters for tesla carbines this way. Scripted actions and the player's weapon menu both honor it; a script firing a weapon outside the effective loadout fails at load time.
@@ -93,4 +95,5 @@ Field reference:
 
 - **The kitchen-sink scenario.** "This one teaches AP, rerolls, Lethal Hits, and target priority." No it doesn't, it teaches none of them.
 - **The lecture scenario.** A wall of intro text explaining a rule, followed by one die roll. The dice should do the teaching; text should highlight what just happened.
+- **The scripted-but-secretly-random opponent.** If the lesson is about the *enemy's* decision-making (target priority, return fire), use `opponent_strategy: "heuristic"` and let the player watch a real decision — don't hand-script the "clever" move, because the outro's claims about *why* the enemy fired there must stay true on every seed.
 - **The cheat scenario.** Using made-up units or stats to force a lesson. Use real units; if a real-units example doesn't demonstrate the concept cleanly, the concept may not be ready to teach yet.

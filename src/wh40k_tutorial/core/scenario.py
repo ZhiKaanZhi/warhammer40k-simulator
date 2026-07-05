@@ -33,6 +33,10 @@ SIDES = ("attacker", "defender")
 # v1 models the shooting phase only (see "Scope discipline" in CLAUDE.md).
 _SUPPORTED_PHASES = ("shooting",)
 
+# Who plays the non-player side: "scripted" replays the scenario's action
+# lists; "heuristic" is the expected-damage AI (strategies/heuristic.py).
+OPPONENT_STRATEGIES = ("scripted", "heuristic")
+
 
 class ScenarioDataError(ValueError):
     """A scenario JSON file doesn't match the schema in the add-scenario skill."""
@@ -103,6 +107,9 @@ class Scenario:
     defender: ScenarioSide
     turns: tuple[ScenarioTurn, ...]
     outro: str
+    # How the non-player side is driven: "scripted" (default; replays the
+    # turns' action lists) or "heuristic" (the expected-damage AI).
+    opponent_strategy: str = "scripted"
 
     def side(self, name: str) -> ScenarioSide:
         if name == "attacker":
@@ -366,6 +373,21 @@ def _parse_scenario(data: object, source: str) -> Scenario:
         _parse_turn(t, attacker, defender, f"{source}.turns[{i}]")
         for i, t in enumerate(turns_raw)
     )
+    opponent_strategy = data.get("opponent_strategy", "scripted")
+    if opponent_strategy not in OPPONENT_STRATEGIES:
+        raise ScenarioDataError(
+            f"{source}: 'opponent_strategy' must be one of {OPPONENT_STRATEGIES}, "
+            f"got {opponent_strategy!r}"
+        )
+    if opponent_strategy == "heuristic":
+        opponent = opposing_side(player_side)
+        for i, turn in enumerate(turns):
+            if turn.active_side == opponent and turn.actions:
+                raise ScenarioDataError(
+                    f"{source}.turns[{i}]: scripted 'actions' for the {opponent} "
+                    f"contradict opponent_strategy 'heuristic' — the AI picks its "
+                    f"own shots; remove the actions or drop the field"
+                )
     return Scenario(
         scenario_id=scenario_id,
         title=_str_field(data, "title", source),
@@ -376,6 +398,7 @@ def _parse_scenario(data: object, source: str) -> Scenario:
         defender=defender,
         turns=turns,
         outro=_str_field(data, "outro", source),
+        opponent_strategy=opponent_strategy,
     )
 
 

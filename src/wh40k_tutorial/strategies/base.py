@@ -5,9 +5,11 @@ action for a side. Three implementations are planned:
 
 - HumanStrategy:     prompts the player via the CLI. The player IS the strategy.
 - ScriptedStrategy:  replays a fixed sequence from the scenario file.
-                     Used for the AI side in v1 tutorials.
-- HeuristicStrategy: (v2) picks the highest-EV action using the same combat
-                     math the engine uses for dice resolution.
+                     Used for the opponent in the teaching-ladder tutorials.
+- HeuristicStrategy: picks the highest-expected-damage shot using the same
+                     combat math the engine uses for dice resolution (the
+                     estimator is Monte Carlo-tested against the pipeline).
+                     Scenarios opt in with opponent_strategy: "heuristic".
 
 The engine ONLY interacts with strategies through this protocol. Player input
 logic does not leak into combat code. AI logic does not need to know how

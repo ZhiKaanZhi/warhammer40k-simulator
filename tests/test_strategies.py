@@ -69,6 +69,7 @@ def _snap(
     models: int | None = None,
     position: tuple[int, int] = (0, 0),
     has_shot: bool = False,
+    loadout: tuple[str, ...] = (),
 ) -> UnitSnapshot:
     resolved_models = sheet.default_model_count if models is None else models
     return UnitSnapshot(
@@ -79,6 +80,7 @@ def _snap(
         models=resolved_models,
         wounds_on_lead=sheet.profile.wounds if resolved_models > 0 else 0,
         has_shot=has_shot,
+        loadout=loadout,
     )
 
 
@@ -122,6 +124,12 @@ class TestGameState:
         sheet = _sheet("kitted_squad", sword, rifle, pistol, loadout=("rifle", "sword", "pistol"))
         snap = _snap("a1", "attacker", sheet)
         assert [w.name for w in snap.ranged_weapons] == ["rifle", "pistol"]
+
+    def test_ranged_weapons_honor_a_scenario_override(self) -> None:
+        pistol, rifle = _weapon("pistol"), _weapon("rifle")
+        sheet = _sheet("kitted_squad", rifle, pistol, loadout=("rifle",))
+        snap = _snap("a1", "attacker", sheet, loadout=("pistol",))
+        assert [w.name for w in snap.ranged_weapons] == ["pistol"]
 
     def test_ranged_weapons_fall_back_to_all_ranged_without_loadout(self) -> None:
         pistol, sword = _weapon("pistol"), _weapon("sword", type_="melee")

@@ -20,7 +20,9 @@ Boundaries (see ADR 0005):
 v1 simplifications, on purpose: weapon range is not enforced (scenarios are
 pre-positioned in range; range checks arrive with movement, which also fixes
 the grid-squares-to-inches convention), and one activation fires one weapon
-profile (no unit in the current data carries two ranged guns).
+profile. A unit's shootable weapons are its effective loadout — the
+scenario's per-unit loadout override if one is given, else the datasheet's
+default_loadout (see `core.models.shootable_weapons`).
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from wh40k_tutorial.core.combat import ShootingResult, resolve_shooting
-from wh40k_tutorial.core.models import UnitDatasheet, Weapon
+from wh40k_tutorial.core.models import UnitDatasheet, Weapon, shootable_weapons
 from wh40k_tutorial.core.scenario import Scenario, ScenarioTurn, opposing_side
 from wh40k_tutorial.strategies.base import Action, GameState, Strategy, UnitSnapshot
 
@@ -49,6 +51,8 @@ class UnitRuntime:
     position: tuple[int, int]
     models: int
     wounds_on_lead: int
+    # The scenario's loadout override; empty = use the datasheet's default.
+    loadout: tuple[str, ...] = ()
 
     @property
     def destroyed(self) -> bool:
@@ -63,6 +67,7 @@ class UnitRuntime:
             models=self.models,
             wounds_on_lead=self.wounds_on_lead,
             has_shot=has_shot,
+            loadout=self.loadout,
         )
 
 
@@ -86,6 +91,7 @@ class BattleState:
                 position=u.position,
                 models=u.models,
                 wounds_on_lead=u.datasheet.profile.wounds,
+                loadout=u.loadout,
             )
             for side in (scenario.attacker, scenario.defender)
             for u in side.units
@@ -214,6 +220,13 @@ def _validate_action(
         raise EngineError(
             f"{weapon.display_name} is a melee weapon and cannot be fired in the "
             f"shooting phase"
+        )
+    carried = {w.name for w in shootable_weapons(attacker.datasheet, attacker.loadout)}
+    if weapon.name not in carried:
+        raise EngineError(
+            f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) is not "
+            f"carrying {weapon.display_name} in this scenario — its loadout is "
+            f"{', '.join(sorted(carried))}"
         )
     target = state.units.get(action.target_unit_id)
     if target is None:

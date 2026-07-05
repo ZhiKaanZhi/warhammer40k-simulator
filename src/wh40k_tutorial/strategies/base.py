@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from wh40k_tutorial.core.models import UnitDatasheet, Weapon
+from wh40k_tutorial.core.models import UnitDatasheet, Weapon, shootable_weapons
 from wh40k_tutorial.core.scenario import opposing_side
 
 
@@ -38,6 +38,9 @@ class UnitSnapshot:
     models: int              # models still standing
     wounds_on_lead: int      # wounds left on the front model; 0 once destroyed
     has_shot: bool = False   # already activated in the current shooting phase
+    # The scenario's loadout override for this unit; empty means "use the
+    # datasheet's default_loadout". Set by the engine from ScenarioUnit.loadout.
+    loadout: tuple[str, ...] = ()
 
     @property
     def destroyed(self) -> bool:
@@ -45,21 +48,13 @@ class UnitSnapshot:
 
     @property
     def ranged_weapons(self) -> tuple[Weapon, ...]:
-        """The weapons this unit may shoot with, default loadout first.
+        """The weapons this unit may shoot with, in loadout order.
 
-        v1 loadouts cover the whole unit, so the shootable weapons are the
-        ranged entries of ``default_loadout`` — or every ranged weapon if the
-        datasheet declares no loadout.
+        Defers to `core.models.shootable_weapons` — the scenario's loadout
+        override when one exists, otherwise the datasheet's ``default_loadout``
+        (or every ranged weapon on a sheet that declares no loadout at all).
         """
-        by_key = {w.name: w for w in self.datasheet.weapons}
-        chosen = [
-            by_key[key]
-            for key in self.datasheet.default_loadout
-            if by_key[key].type == "ranged"
-        ]
-        if chosen:
-            return tuple(chosen)
-        return tuple(w for w in self.datasheet.weapons if w.type == "ranged")
+        return shootable_weapons(self.datasheet, self.loadout)
 
 
 @dataclass(frozen=True)

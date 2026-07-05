@@ -16,7 +16,12 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
-from wh40k_tutorial.core.models import FactionDataError, UnitDatasheet, load_faction_by_name
+from wh40k_tutorial.core.models import (
+    FactionDataError,
+    UnitDatasheet,
+    load_faction_by_name,
+    shootable_weapons,
+)
 
 # The battlefield the scenarios position their units on. The Rich UI draws
 # this same grid (ui/shell.py defaults to these dimensions).
@@ -41,6 +46,11 @@ class ScenarioUnit:
     datasheet: UnitDatasheet
     position: tuple[int, int]  # (x, y) on the battlefield grid
     models: int
+    # Per-scenario loadout override: the weapon keys every model carries in
+    # THIS scenario instead of the datasheet's default_loadout. Empty means
+    # "no override — use the datasheet's default". Same shape and rules as
+    # default_loadout (see the add-scenario skill).
+    loadout: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -151,6 +161,41 @@ def _parse_position(raw: object, ctx: str) -> tuple[int, int]:
     return (x, y)
 
 
+def _parse_loadout_override(raw: object, sheet: UnitDatasheet, ctx: str) -> tuple[str, ...]:
+    """Parse a unit's optional per-scenario loadout override.
+
+    Mirrors the faction loader's ``default_loadout`` rules (keys must exist on
+    the datasheet, coverage must be ``"all"`` in v1) plus one scenario-side
+    requirement: the override must select at least one ranged weapon, because
+    v1 units act only in the shooting phase and a shoot-nothing override is
+    almost certainly an authoring mistake.
+    """
+    if not isinstance(raw, dict) or not raw:
+        raise ScenarioDataError(
+            f"{ctx}: 'loadout' must be a non-empty object of weapon-key -> 'all' — "
+            f"omit the field entirely to use the datasheet's default loadout"
+        )
+    by_key = {w.name: w for w in sheet.weapons}
+    for weapon_key, coverage in raw.items():
+        if weapon_key not in by_key:
+            raise ScenarioDataError(
+                f"{ctx}.loadout: {sheet.display_name} has no weapon {weapon_key!r}; "
+                f"available: {', '.join(sorted(by_key))}"
+            )
+        if coverage != "all":
+            raise ScenarioDataError(
+                f"{ctx}.loadout: only 'all' coverage is supported in v1, "
+                f"got {coverage!r} for {weapon_key!r}"
+            )
+    override = tuple(raw)
+    if all(by_key[key].type != "ranged" for key in override):
+        raise ScenarioDataError(
+            f"{ctx}.loadout: must include at least one ranged weapon — v1 units "
+            f"act only in the shooting phase"
+        )
+    return override
+
+
 def _parse_unit(
     raw: object, side_name: str, sheets: dict[str, UnitDatasheet], ctx: str
 ) -> ScenarioUnit:
@@ -174,11 +219,17 @@ def _parse_unit(
             f"{ctx}: {models} models does not fit {sheet.display_name}'s unit size "
             f"({sheet.min_model_count}..{hi})"
         )
+    loadout_raw = raw.get("loadout")
     return ScenarioUnit(
         unit_id=unit_id,
         datasheet=sheet,
         position=_parse_position(_get(raw, "position", ctx), ctx),
         models=models,
+        loadout=(
+            ()
+            if loadout_raw is None
+            else _parse_loadout_override(loadout_raw, sheet, ctx)
+        ),
     )
 
 
@@ -245,6 +296,13 @@ def _parse_action(
         raise ScenarioDataError(
             f"{ctx}: {weapon.display_name} is a melee weapon — scripted shooting "
             f"actions need a ranged weapon"
+        )
+    carried = {w.name for w in shootable_weapons(shooter.datasheet, shooter.loadout)}
+    if weapon_key not in carried:
+        raise ScenarioDataError(
+            f"{ctx}: {shooter.datasheet.display_name} ({attacker_id!r}) is not "
+            f"carrying {weapon.display_name} in this scenario — its loadout is "
+            f"{', '.join(sorted(carried))}"
         )
     if all(u.unit_id != target_id for u in enemies.units):
         raise ScenarioDataError(

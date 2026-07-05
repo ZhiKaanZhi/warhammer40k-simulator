@@ -99,6 +99,31 @@ class UnitDatasheet:
     notes: str = ""
 
 
+def shootable_weapons(
+    datasheet: UnitDatasheet, loadout_override: tuple[str, ...] = ()
+) -> tuple[Weapon, ...]:
+    """The ranged weapons a unit may fire, honoring an optional loadout override.
+
+    This is the single definition of "what can this unit shoot": the scenario
+    loader, the engine's action validation, and the strategies'
+    ``UnitSnapshot.ranged_weapons`` all defer to it, so menus, scripts, and
+    legality checks can never disagree.
+
+    Selection: the scenario's ``loadout_override`` if one was given, otherwise
+    the datasheet's ``default_loadout``; the result is that selection's ranged
+    entries, in selection order. A datasheet that declares no loadout at all
+    falls back to every ranged weapon it carries. (The scenario loader
+    guarantees any override it accepts contains at least one ranged weapon,
+    so an override never falls through to that last resort.)
+    """
+    by_key = {w.name: w for w in datasheet.weapons}
+    selected = loadout_override or datasheet.default_loadout
+    chosen = tuple(by_key[key] for key in selected if by_key[key].type == "ranged")
+    if chosen:
+        return chosen
+    return tuple(w for w in datasheet.weapons if w.type == "ranged")
+
+
 class FactionDataError(ValueError):
     """A faction JSON file doesn't match the schema in the add-unit skill."""
 

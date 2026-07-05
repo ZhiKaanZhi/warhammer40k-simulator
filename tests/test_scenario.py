@@ -135,12 +135,13 @@ class TestValidScenario:
 
 
 class TestPackagedScenarios:
-    def test_all_four_scenarios_are_listed(self) -> None:
+    def test_all_five_scenarios_are_listed(self) -> None:
         assert [s.scenario_id for s in available_scenarios()] == [
             "01_first_shots",
             "02_tougher_targets",
             "03_piercing_armour",
             "04_lethal_hits",
+            "05_sustained_hits",
         ]
 
     def test_tougher_targets_offers_two_toughness_values(self) -> None:
@@ -160,6 +161,15 @@ class TestPackagedScenarios:
         scenario = load_scenario_by_id("04_lethal_hits")
         flayer = scenario.attacker.units[0].datasheet.weapons[0]
         assert "lethal_hits" in flayer.keywords
+
+    def test_sustained_hits_equips_the_tesla_override(self) -> None:
+        scenario = load_scenario_by_id("05_sustained_hits")
+        immortals = scenario.attacker.units[0]
+        assert immortals.loadout == ("tesla_carbine",)
+        tesla = next(w for w in immortals.datasheet.weapons if w.name == "tesla_carbine")
+        assert "sustained_hits_2" in tesla.keywords
+        assert scenario.player_side == "attacker"
+        assert len(scenario.turns) == 2
 
     def test_first_shots_loads_by_id(self) -> None:
         scenario = load_scenario_by_id("01_first_shots")
@@ -306,3 +316,85 @@ class TestMalformedScriptedActions:
         action = {"attacker": "marines_1", "weapon": "bolt_rifle", "target": "hive_tyrant_1"}
         with pytest.raises(ScenarioDataError, match="hive_tyrant_1"):
             _load(tmp_path, self._with_action(action))
+
+
+# ---------------------------------------------------------------------------
+# Per-scenario loadout overrides
+# ---------------------------------------------------------------------------
+
+
+def _with_necron_attacker(data: dict) -> dict:
+    """Swap the attacker for Immortals, who carry two ranged guns."""
+    data["sides"]["attacker"] = {
+        "faction": "necrons",
+        "units": [
+            {"id": "immortals_1", "datasheet": "immortals", "position": [3, 4], "models": 5}
+        ],
+    }
+    return data
+
+
+class TestLoadoutOverride:
+    def test_no_override_leaves_loadout_empty(self, tmp_path: Path) -> None:
+        scenario = _load(tmp_path, _base())
+        assert scenario.attacker.units[0].loadout == ()
+
+    def test_valid_override_round_trips(self, tmp_path: Path) -> None:
+        data = _with_necron_attacker(_base())
+        data["sides"]["attacker"]["units"][0]["loadout"] = {"tesla_carbine": "all"}
+        scenario = _load(tmp_path, data)
+        assert scenario.attacker.units[0].loadout == ("tesla_carbine",)
+
+    def test_unknown_weapon_names_the_available_ones(self, tmp_path: Path) -> None:
+        data = _with_necron_attacker(_base())
+        data["sides"]["attacker"]["units"][0]["loadout"] = {"doomsday_cannon": "all"}
+        with pytest.raises(ScenarioDataError, match=r"doomsday_cannon.*tesla_carbine"):
+            _load(tmp_path, data)
+
+    def test_partial_coverage_rejected_in_v1(self, tmp_path: Path) -> None:
+        data = _with_necron_attacker(_base())
+        data["sides"]["attacker"]["units"][0]["loadout"] = {"tesla_carbine": "half"}
+        with pytest.raises(ScenarioDataError, match="only 'all'"):
+            _load(tmp_path, data)
+
+    def test_empty_override_rejected(self, tmp_path: Path) -> None:
+        data = _with_necron_attacker(_base())
+        data["sides"]["attacker"]["units"][0]["loadout"] = {}
+        with pytest.raises(ScenarioDataError, match="non-empty"):
+            _load(tmp_path, data)
+
+    def test_melee_only_override_rejected(self, tmp_path: Path) -> None:
+        data = _with_necron_attacker(_base())
+        data["sides"]["attacker"]["units"][0]["loadout"] = {"close_combat_weapon": "all"}
+        with pytest.raises(ScenarioDataError, match="at least one ranged"):
+            _load(tmp_path, data)
+
+    def test_scripted_action_outside_the_override_rejected(self, tmp_path: Path) -> None:
+        data = _with_necron_attacker(_base())
+        data["sides"]["attacker"]["units"][0]["loadout"] = {"tesla_carbine": "all"}
+        data["turns"][0]["actions"] = [
+            {"attacker": "immortals_1", "weapon": "gauss_blaster", "target": "termagants_1"}
+        ]
+        with pytest.raises(ScenarioDataError, match=r"not\s+carrying.*tesla_carbine"):
+            _load(tmp_path, data)
+
+    def test_scripted_action_outside_the_default_loadout_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        # No override: Immortals default to the gauss blaster, so a script
+        # firing the tesla carbine is an authoring inconsistency.
+        data = _with_necron_attacker(_base())
+        data["turns"][0]["actions"] = [
+            {"attacker": "immortals_1", "weapon": "tesla_carbine", "target": "termagants_1"}
+        ]
+        with pytest.raises(ScenarioDataError, match=r"not\s+carrying.*gauss_blaster"):
+            _load(tmp_path, data)
+
+    def test_scripted_action_inside_the_override_accepted(self, tmp_path: Path) -> None:
+        data = _with_necron_attacker(_base())
+        data["sides"]["attacker"]["units"][0]["loadout"] = {"tesla_carbine": "all"}
+        data["turns"][0]["actions"] = [
+            {"attacker": "immortals_1", "weapon": "tesla_carbine", "target": "termagants_1"}
+        ]
+        (action,) = _load(tmp_path, data).turns[0].actions
+        assert action.weapon == "tesla_carbine"

@@ -28,6 +28,7 @@ from wh40k_tutorial.strategies.scripted import ScriptedStrategy
 
 MARINES = load_faction_by_name("space_marines")["intercessor_squad"]
 GANTS = load_faction_by_name("tyranids")["termagants"]
+IMMORTALS = load_faction_by_name("necrons")["immortals"]
 BOLT_RIFLE = next(w for w in MARINES.weapons if w.name == "bolt_rifle")
 
 SHOOT = "shoot"
@@ -315,6 +316,52 @@ class TestActionValidation:
                 Action(SHOOT, "m2", "bolt_rifle", "g1"),
                 defenders=(_gants("g1", 9, models=1), _gants("g2", 10)),
             )
+
+    def test_loadout_override_threads_to_snapshots_and_menus(self) -> None:
+        immortals = ScenarioUnit(
+            "immortals_1", IMMORTALS, (0, 0), 5, loadout=("tesla_carbine",)
+        )
+        scenario = _scenario((immortals,), (_gants("d1", 9),), ONE_ATTACKER_TURN)
+        snap = BattleState.from_scenario(scenario).snapshot()
+        unit = snap.unit("immortals_1")
+        assert unit.loadout == ("tesla_carbine",)
+        assert [w.name for w in unit.ranged_weapons] == ["tesla_carbine"]
+
+    def test_weapon_outside_the_loadout_is_an_engine_error(self) -> None:
+        immortals = ScenarioUnit(
+            "immortals_1", IMMORTALS, (0, 0), 5, loadout=("tesla_carbine",)
+        )
+        scenario = _scenario((immortals,), (_gants("d1", 9),), ONE_ATTACKER_TURN)
+        rogue = ScriptedStrategy(
+            [Action(SHOOT, "immortals_1", "gauss_blaster", "d1")]
+        )
+        idle = ScriptedStrategy([])
+        with pytest.raises(EngineError, match=r"not\s+carrying.*tesla_carbine"):
+            run_scenario(
+                scenario,
+                {"attacker": rogue, "defender": idle},
+                rng=random.Random(0),
+            )
+
+    def test_weapon_inside_the_loadout_resolves(self) -> None:
+        immortals = ScenarioUnit(
+            "immortals_1", IMMORTALS, (0, 0), 5, loadout=("tesla_carbine",)
+        )
+        scenario = _scenario((immortals,), (_gants("d1", 9),), ONE_ATTACKER_TURN)
+        events: list[VolleyEvent] = []
+        run_scenario(
+            scenario,
+            {
+                "attacker": ScriptedStrategy(
+                    [Action(SHOOT, "immortals_1", "tesla_carbine", "d1")]
+                ),
+                "defender": ScriptedStrategy([]),
+            },
+            rng=random.Random(7),
+            on_volley=events.append,
+        )
+        (event,) = events
+        assert event.result.attack.weapon.name == "tesla_carbine"
 
     def test_seed_zero_really_tables_the_lone_termagant(self) -> None:
         result = resolve_shooting(MARINES, 5, BOLT_RIFLE, GANTS, 1, 1, rng=random.Random(0))

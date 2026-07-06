@@ -305,7 +305,8 @@ class TestAbilityNarration:
         assert tuple(n.step for n in narrations) == (*STEP_ORDER, "mortal")
         mortal = narrations[-1]
         assert "no armour or invulnerable save" in mortal.inline
-        assert "single-wound packets" in mortal.expansion
+        assert "strikes just one model" in mortal.inline
+        assert "do not spill to the next model" in mortal.expansion
         assert "Feel No Pain" in mortal.expansion
 
     def test_keywordless_volley_stays_five_steps_with_no_ability_talk(self) -> None:

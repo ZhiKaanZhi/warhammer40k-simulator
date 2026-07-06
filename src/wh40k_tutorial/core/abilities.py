@@ -31,7 +31,10 @@ on 2026-07-03 (see docs/design/shooting-pipeline.md):
 - **Devastating Wounds** (24.10): each critical *wound* ends that attack's
   sequence — no save, no normal damage — and the target unit instead
   suffers mortal wounds equal to the weapon's Damage, inflicted after the
-  volley's normal damage (the pipeline's mortal-wound step, per 06.02).
+  volley's normal damage. Those mortals hit at most one model per critical
+  wound (overkill lost, no spillover); the pipeline's mortal-wound step
+  applies that cap. This hook only splits the pool (counts the criticals and
+  the Damage they carry); the allocation lives in combat.py.
 
 Adding an ability = one small function here + one registry entry. The combat
 pipeline never changes.
@@ -98,7 +101,7 @@ class WoundAdjustment:
     """What wound-step after-roll hooks contribute; summed componentwise."""
 
     diverted_critical_wounds: int = 0  # pulled out before saves (Devastating Wounds)
-    mortal_wounds: int = 0  # single-wound packets for the mortal-wound step
+    mortal_wounds: int = 0  # total mortals (crits x Damage); combat caps each crit to one model
 
 
 HitHook = Callable[[RollResult, Weapon, int | None], HitAdjustment]

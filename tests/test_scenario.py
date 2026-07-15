@@ -135,7 +135,7 @@ class TestValidScenario:
 
 
 class TestPackagedScenarios:
-    def test_all_six_scenarios_are_listed(self) -> None:
+    def test_all_seven_scenarios_are_listed(self) -> None:
         assert [s.scenario_id for s in available_scenarios()] == [
             "01_first_shots",
             "02_tougher_targets",
@@ -143,7 +143,17 @@ class TestPackagedScenarios:
             "04_lethal_hits",
             "05_sustained_hits",
             "06_return_fire",
+            "07_devastating_wounds",
         ]
+
+    def test_devastating_wounds_arms_the_arc_rifle_override(self) -> None:
+        scenario = load_scenario_by_id("07_devastating_wounds")
+        rangers = scenario.attacker.units[0]
+        assert rangers.loadout == ("arc_rifle",)
+        arc = next(w for w in rangers.datasheet.weapons if w.name == "arc_rifle")
+        assert "devastating_wounds" in arc.keywords
+        assert arc.damage.is_variable  # D3 — the point of the lesson
+        assert scenario.defender.units[0].datasheet.key == "intercessor_squad"
 
     def test_tougher_targets_offers_two_toughness_values(self) -> None:
         scenario = load_scenario_by_id("02_tougher_targets")

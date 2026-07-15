@@ -13,6 +13,7 @@ the combat pipeline. Schema reference: `.claude/skills/add-unit/SKILL.md`.
 from __future__ import annotations
 
 import json
+import random
 import re
 from dataclasses import dataclass
 from importlib import resources
@@ -53,6 +54,84 @@ def parse_weapon_keyword(raw: str) -> WeaponKeyword:
     return WeaponKeyword(name=raw)
 
 
+_DICE_RE = re.compile(r"^(\d*)[dD](\d+)([+-]\d+)?$")
+
+
+@dataclass(frozen=True)
+class DiceValue:
+    """A characteristic that is either a fixed number or a simple dice roll.
+
+    Covers the forms weapons use for Damage: a fixed integer, a single die
+    ('D3', 'D6'), or a die with a flat modifier ('D6+2'). ``roll`` draws one
+    sample — a fixed value never touches the rng, so introducing variable
+    damage doesn't disturb any existing seeded outcome — and ``average`` is
+    the mean the expected-damage estimator reads. (v1 uses a single die;
+    the shape allows a count for later.)
+    """
+
+    n_dice: int      # 0 for a fixed value; else the number of dice (v1: 1)
+    die_sides: int   # 3 or 6 when n_dice > 0; 0 for a fixed value
+    modifier: int    # the constant when fixed; the flat "+X" on a die otherwise
+
+    @classmethod
+    def fixed(cls, value: int) -> DiceValue:
+        return cls(n_dice=0, die_sides=0, modifier=value)
+
+    @classmethod
+    def coerce(cls, value: object) -> DiceValue:
+        """Best-effort conversion from an int or a dice string; raises ValueError.
+
+        Convenience for hand-built ``Weapon``s; the JSON loader uses
+        ``_parse_damage`` instead for messages that name the offending field.
+        """
+        if isinstance(value, DiceValue):
+            return value
+        if isinstance(value, bool):
+            raise ValueError(f"cannot interpret {value!r} as a damage value")
+        if isinstance(value, int):
+            return cls.fixed(value)
+        if isinstance(value, str):
+            match = _DICE_RE.match(value.strip())
+            if match:
+                n = int(match.group(1)) if match.group(1) else 1
+                sides = int(match.group(2))
+                mod = int(match.group(3)) if match.group(3) else 0
+                if sides in (3, 6) and n >= 1:
+                    return cls(n_dice=n, die_sides=sides, modifier=mod)
+        raise ValueError(f"cannot interpret {value!r} as a damage value")
+
+    @property
+    def is_variable(self) -> bool:
+        return self.n_dice > 0
+
+    @property
+    def average(self) -> float:
+        """Mean of the roll — (sides+1)/2 per die, plus the modifier."""
+        return self.n_dice * (self.die_sides + 1) / 2 + self.modifier
+
+    @property
+    def minimum(self) -> int:
+        return self.n_dice + self.modifier  # each die shows at least 1
+
+    @property
+    def maximum(self) -> int:
+        return self.n_dice * self.die_sides + self.modifier
+
+    def roll(self, rng: random.Random) -> int:
+        """One sample. A fixed value draws no dice, leaving the rng untouched."""
+        return sum(rng.randint(1, self.die_sides) for _ in range(self.n_dice)) + self.modifier
+
+    def __str__(self) -> str:
+        if not self.is_variable:
+            return str(self.modifier)
+        core = f"{self.n_dice if self.n_dice > 1 else ''}D{self.die_sides}"
+        if self.modifier > 0:
+            core += f"+{self.modifier}"
+        elif self.modifier < 0:
+            core += str(self.modifier)
+        return core
+
+
 @dataclass(frozen=True)
 class Weapon:
     """A weapon profile.
@@ -72,8 +151,14 @@ class Weapon:
     skill: int
     strength: int
     ap: int  # positive integer magnitude
-    damage: int
+    damage: DiceValue  # a fixed int or dice string may be passed; coerced to DiceValue
     keywords: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        # Accept a plain int or a dice string ("D3") for ergonomics; the
+        # canonical stored form is always a DiceValue.
+        if not isinstance(self.damage, DiceValue):
+            object.__setattr__(self, "damage", DiceValue.coerce(self.damage))
 
     @property
     def parsed_keywords(self) -> tuple[WeaponKeyword, ...]:
@@ -174,6 +259,35 @@ def _validate_keyword(keyword: object, ctx: str) -> str:
     )
 
 
+def _parse_damage(data: dict, ctx: str) -> DiceValue:
+    """Parse a weapon's Damage: a positive integer, or a dice value 'D3'/'D6'/'D6+1'."""
+    raw = _get(data, "damage", ctx)
+    if isinstance(raw, bool):
+        raise FactionDataError(f"{ctx}: 'damage' must be an integer or dice value, got {raw!r}")
+    if isinstance(raw, int):
+        if raw < 1:
+            raise FactionDataError(f"{ctx}: 'damage' must be >= 1, got {raw}")
+        return DiceValue.fixed(raw)
+    if isinstance(raw, str):
+        match = _DICE_RE.match(raw.strip())
+        if match is None:
+            raise FactionDataError(
+                f"{ctx}: 'damage' must be an integer or a dice value like 'D3', 'D6', "
+                f"or 'D6+1', got {raw!r}"
+            )
+        n = int(match.group(1)) if match.group(1) else 1
+        sides = int(match.group(2))
+        mod = int(match.group(3)) if match.group(3) else 0
+        if sides not in (3, 6):
+            raise FactionDataError(f"{ctx}: dice damage supports only D3 or D6, got 'D{sides}'")
+        if n < 1:
+            raise FactionDataError(f"{ctx}: dice count must be >= 1 in {raw!r}")
+        if n + mod < 1:
+            raise FactionDataError(f"{ctx}: 'damage' {raw!r} can roll below 1")
+        return DiceValue(n_dice=n, die_sides=sides, modifier=mod)
+    raise FactionDataError(f"{ctx}: 'damage' must be an integer or dice value, got {raw!r}")
+
+
 def _parse_weapon(key: str, data: dict, ctx: str) -> Weapon:
     weapon_type = _get(data, "type", ctx)
     if weapon_type not in _WEAPON_TYPES:
@@ -196,7 +310,7 @@ def _parse_weapon(key: str, data: dict, ctx: str) -> Weapon:
         skill=_int_field(data, "skill", ctx, lo=2, hi=6),
         strength=_int_field(data, "strength", ctx, lo=1),
         ap=_int_field(data, "ap", ctx, lo=0),
-        damage=_int_field(data, "damage", ctx, lo=1),
+        damage=_parse_damage(data, ctx),
         keywords=tuple(_validate_keyword(kw, ctx) for kw in data.get("keywords", [])),
     )
 

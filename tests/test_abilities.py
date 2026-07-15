@@ -135,7 +135,7 @@ class TestHooks:
     def test_devastating_wounds_diverts_criticals_as_damage_many_mortals(self) -> None:
         weapon = _weapon(keywords=("devastating_wounds",), damage=3)
         adj = wound_adjustment(_roll_with_crits(2), weapon)
-        assert adj == WoundAdjustment(diverted_critical_wounds=2, mortal_wounds=6)
+        assert adj == WoundAdjustment(diverted_critical_wounds=2)
 
     def test_keywordless_weapon_gets_zero_adjustments(self) -> None:
         weapon = _weapon()

@@ -28,8 +28,15 @@ than it is:
 - The estimate is **raw damage**, not effective damage: it ignores per-model
   overkill (a Damage-3 hit on a 1-wound model still counts 3 here) and does
   not cap at the target's remaining wounds. Callers that care — the
-  heuristic strategy does — apply their own cap. Every current weapon deals
-  Damage 1, so the overkill gap is presently zero.
+  heuristic strategy does — apply their own cap. The gap is real for
+  weapons whose Damage exceeds (or doesn't divide) the target's wounds: the
+  D3 arc rifle raw-scores ~5.0 into 2-wound Intercessors but strips ~3.9
+  wounds. For ranking targets that is harmless — it's a monotone
+  overstatement the strategy's cap already handles — but nothing may read
+  this number as "wounds removed".
+- Variable Damage (D3/D6) enters as its **average**; the pipeline rolls it
+  per failed save and per critical wound. So the estimate is the mean of a
+  distribution, not a value any single volley produces.
 - Probabilities assume no die modifiers, matching v1 (no before-roll hook
   exists yet). When modifiers arrive, the hit/wound probabilities here must
   learn the ±1 cap alongside them.
@@ -82,16 +89,17 @@ def expected_damage(attacker_models: int, weapon: Weapon, target: Profile) -> fl
     wound_dice = hits - auto_wounds
     p_wound = _p_meets(wound_target(weapon.strength, target.toughness))
     wounds = wound_dice * p_wound + auto_wounds
+    mean_damage = weapon.damage.average  # mean of a fixed value is itself
     mortal_damage = 0.0
     savable_wounds = wounds
     if "devastating_wounds" in keywords:
         critical_wounds = wound_dice * _P_CRITICAL
         savable_wounds = wounds - critical_wounds
-        mortal_damage = critical_wounds * weapon.damage
+        mortal_damage = critical_wounds * mean_damage
 
     # Save step: AP-worsened armour vs the invulnerable, whichever is better;
     # a 7+ requirement means no save is possible (ADR 0003).
     save = save_target(target.save, weapon.ap, target.invulnerable_save)
     p_save = _p_meets(save) if save <= 6 else 0.0
 
-    return savable_wounds * (1 - p_save) * weapon.damage + mortal_damage
+    return savable_wounds * (1 - p_save) * mean_damage + mortal_damage

@@ -1,0 +1,45 @@
+{
+  "id": "07_devastating_wounds",
+  "title": "Devastating Wounds",
+  "teaches": "the third critical-hit ability: Devastating Wounds turns a critical WOUND into mortal wounds that ignore every save — but each one can only kill a single model.",
+  "player_side": "attacker",
+  "intro": "Ten Skitarii Rangers of the Adeptus Mechanicus have swapped their galvanic rifles for arc rifles: fewer shots, but each one carries a charge that can tear straight through ceramite. Their target is a squad of Space Marine Intercessors — Toughness 4 behind a 3+ save, two wounds each. The arc rifle is Strength 8, so it wounds on 2+, and its AP -1 drags the Marines' save to 4+. Watch the WOUND line for natural 6s. Those are critical wounds, and DEVASTATING WOUNDS turns each one into mortal wounds — damage that skips the saving throw entirely. Note the Damage: D3. It is rolled fresh every time, so no two hits land the same.",
+  "sides": {
+    "attacker": {
+      "faction": "adeptus_mechanicus",
+      "units": [
+        {
+          "id": "rangers_1",
+          "datasheet": "skitarii_rangers",
+          "position": [2, 4],
+          "models": 10,
+          "loadout": { "arc_rifle": "all" }
+        }
+      ]
+    },
+    "defender": {
+      "faction": "space_marines",
+      "units": [
+        {
+          "id": "intercessors_1",
+          "datasheet": "intercessor_squad",
+          "position": [9, 4],
+          "models": 10
+        }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Open fire. Most wounds will go to the SAVE line, where the Marines get their 4+ — but any natural 6 to wound never reaches it. Those criticals come back at the very end, on a MORTAL line, after the ordinary damage has been dealt."
+    },
+    {
+      "phase": "shooting",
+      "active_side": "attacker",
+      "narrate_before": "Fire again, and watch what a critical actually buys. A mortal wound cannot be saved — but it also cannot spread. Each critical wound picks one Marine and stops there, so a D3 rolling 3 against a 2-wound Marine kills him and throws the third point away. Unsaveable is not the same as unlimited."
+    }
+  ],
+  "outro": "That completes the critical trio. All three fire on an unmodified 6, and each spends it differently: Sustained Hits multiplies a critical HIT into extra attacks, Lethal Hits lets a critical HIT skip the wound roll, and Devastating Wounds lets a critical WOUND skip the save — the only one of the three that beats armour outright. But it pays for that with a hard limit you saw on the MORTAL line: each critical wound strikes exactly one model, and anything past that model's last wound is wasted, the same overkill you met back in scenario 01. That is why a D3 arc rifle is a scalpel, not an avalanche — it opens armour, it doesn't erase squads. You have now seen every step of the shooting sequence and every ability this tutorial models. Ask 'why mortal' after a volley if you want the full rule."
+}

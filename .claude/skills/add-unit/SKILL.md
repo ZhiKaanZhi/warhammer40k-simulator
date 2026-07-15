@@ -54,6 +54,8 @@ Field reference:
 
 - **weapons.*.skill** — WS for melee, BS for ranged. We collapse them into one field because the math is the same — it's the to-hit target. The `type` field disambiguates.
 
+- **weapons.*.damage** — either a positive integer (`1`) or a dice value as a string (`"D3"`, `"D6"`, `"D6+1"`, `"2D6"`; only D3 and D6 dice are supported). Dice damage is rolled fresh for each failed save — and, for a Devastating Wounds weapon, for each critical wound — so the record shows the actual value rolled. Write it the way the datasheet does: an arc rifle's "D3" is `"damage": "D3"`, not `2`.
+
 - **weapons.*.ap** — store as a **positive** integer representing the size of the modifier. Code applies it as a subtraction from the save. So AP -2 in the rulebook is `"ap": 2` here. This is the only place we deviate from rulebook notation and it's worth it for type-safety.
 
 - **weapons.*.keywords** — lowercase, underscores for spaces. Use the canonical keyword names: `assault`, `heavy`, `rapid_fire_1`, `sustained_hits_1`, `lethal_hits`, `devastating_wounds`, `twin_linked`, `anti_infantry_4`, `blast`, `torrent`. If you're adding a keyword the engine doesn't yet support, also add a `TODO:` somewhere and don't claim the weapon "works" until the keyword is implemented.

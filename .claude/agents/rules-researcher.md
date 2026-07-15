@@ -33,6 +33,22 @@ article pages) contain no PDF links — this is the JS/403 wall earlier research
    11th profile for a codex unit is therefore the **10th-codex-current baseline (Wahapedia) + the pack's
    errata**: grep the pack text for the unit and its weapons; no mention in the updates section means the
    baseline stands unchanged. This is how the six shipped factions were verified on 2026-07-04.
+6. **Read the keyword's OWN rule, not just the general rule it invokes.** A keyword that says "inflicts
+   mortal wounds" may carve out an exception to how mortal wounds normally work. Devastating Wounds
+   (24.10) is the cautionary tale: mortals generally spill between models (06.02), but Devastating Wounds
+   caps them at **one model per critical wound**. Reading only 06.02 shipped a real bug (fixed 2026-07-05,
+   PR #15). When a rule cites another rule, fetch and read *both* sections, and quote the *specific* one in
+   the finding.
+
+## Verified findings log
+
+Durable results, so they need not be re-derived. Each was confirmed against the sources named above.
+
+| Thing | Result | Verified |
+|---|---|---|
+| **Devastating Wounds** (24.10) | Critical wound ends the attack; target suffers mortal wounds equal to the weapon's Damage, applied after normal damage. **Each critical wound can damage at most one model — excess is lost, no spillover.** (Exception to 06.02.) | 2026-07-05, Core Rules PDF |
+| **Skitarii Ranger arc rifle** | 30" · A1 · BS 4+ · S8 · AP -1 · D **D3** · [Anti-vehicle 4+, Devastating Wounds, Rapid Fire 1]. One per squad in real games. | 2026-07-05 — Wahapedia 10th baseline + 40k.app agree; the official AdMech Faction Pack has **no arc-rifle erratum** (its Rules Updates reprint only the *Kataphron* heavy arc rifle), so the baseline stands |
+| AdMech Faction Pack filename | `eng_11-06_warhammer40000_faction_pack_adeptus_mechanicus-4dczibqdew-ebqqmotlpe.pdf` | 2026-07-05 |
 
 ## When you're invoked
 

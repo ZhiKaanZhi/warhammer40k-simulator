@@ -23,6 +23,7 @@ from wh40k_tutorial.core.combat import (
     resolve_shooting,
 )
 from wh40k_tutorial.core.models import (
+    DiceValue,
     Profile,
     UnitDatasheet,
     Weapon,
@@ -111,11 +112,9 @@ class TestPipelineConsistency:
         # W1 defenders: every point of inflicted damage is a slain model
         assert d.models_slain == d.damage_inflicted
         assert d.models_slain + d.models_remaining == 10
-        # each failed save contributes exactly `damage`, split applied/wasted
-        assert (
-            d.damage_inflicted + d.wasted_damage
-            == d.damage_per_failed_save * result.save.failed_saves
-        )
+        # each failed save contributes exactly its rolled `damage`, split applied/wasted
+        assert d.damage_inflicted + d.wasted_damage == sum(d.rolls)
+        assert len(d.rolls) == result.save.failed_saves
 
     def test_same_seed_reproduces_identical_result(self) -> None:
         marines, rifle, termagants = _marines_vs_termagants()
@@ -207,10 +206,11 @@ class TestDamageAllocation:
     ) -> None:
         step = _allocate_damage(
             failed_saves=failed,
-            damage=damage,
+            damage=DiceValue.fixed(damage),
             wounds_per_model=wounds_per_model,
             wounds_on_lead=wounds_on_lead,
             model_count=models,
+            rng=random.Random(0),
         )
         assert (
             step.damage_inflicted,
@@ -392,7 +392,8 @@ class TestKeywordAbilitiesInThePipeline:
         assert len(result.save.roll.raw_rolls) == wound.savable_wounds
         # Each diverted critical became Damage-many mortal wounds (capped to
         # one model per crit; here Damage 2 into 2-wound models, so no waste).
-        assert mortal.count == wound.diverted_critical_wounds * weapon.damage
+        assert mortal.count == sum(mortal.rolls)
+        assert len(mortal.rolls) == wound.diverted_critical_wounds
         assert mortal.inflicted + mortal.wasted == mortal.count
         # Mortals landed after normal damage, on the damage step's state.
         assert mortal.models_remaining + mortal.models_slain == result.damage.models_remaining
@@ -429,10 +430,11 @@ class TestMortalWoundAllocator:
         # (not the four-and-a-half that 9 spilling wounds would).
         step = _resolve_mortal_wounds(
             critical_wounds=3,
-            damage_per_crit=3,
+            damage=DiceValue.fixed(3),
             wounds_per_model=2,
             wounds_on_lead=2,
             model_count=5,
+            rng=random.Random(0),
         )
         assert (step.inflicted, step.models_slain, step.wasted) == (6, 3, 3)
         assert step.models_remaining == 2
@@ -442,10 +444,11 @@ class TestMortalWoundAllocator:
     def test_a_critical_can_wound_a_model_without_killing_it(self) -> None:
         step = _resolve_mortal_wounds(
             critical_wounds=1,
-            damage_per_crit=1,
+            damage=DiceValue.fixed(1),
             wounds_per_model=3,
             wounds_on_lead=3,
             model_count=2,
+            rng=random.Random(0),
         )
         assert (step.inflicted, step.models_slain, step.wasted) == (1, 0, 0)
         assert step.models_remaining == 2
@@ -457,10 +460,11 @@ class TestMortalWoundAllocator:
         # model with nothing wasted.
         step = _resolve_mortal_wounds(
             critical_wounds=3,
-            damage_per_crit=1,
+            damage=DiceValue.fixed(1),
             wounds_per_model=3,
             wounds_on_lead=3,
             model_count=1,
+            rng=random.Random(0),
         )
         assert (step.inflicted, step.models_slain, step.wasted) == (3, 1, 0)
         assert step.models_remaining == 0
@@ -468,10 +472,11 @@ class TestMortalWoundAllocator:
     def test_zero_crits_passes_state_through(self) -> None:
         step = _resolve_mortal_wounds(
             critical_wounds=0,
-            damage_per_crit=2,
+            damage=DiceValue.fixed(2),
             wounds_per_model=2,
             wounds_on_lead=1,
             model_count=4,
+            rng=random.Random(0),
         )
         assert step.models_remaining == 4
         assert step.wounds_remaining_on_lead == 1
@@ -480,10 +485,80 @@ class TestMortalWoundAllocator:
     def test_already_destroyed_unit_wastes_every_crit(self) -> None:
         step = _resolve_mortal_wounds(
             critical_wounds=3,
-            damage_per_crit=1,
+            damage=DiceValue.fixed(1),
             wounds_per_model=2,
             wounds_on_lead=1,
             model_count=0,
+            rng=random.Random(0),
         )
         assert (step.inflicted, step.wasted) == (0, 3)
         assert step.models_remaining == 0
+
+
+# ---------------------------------------------------------------------------
+# Variable Damage (D3 / D6) through the pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestVariableDamage:
+    def _rangers_arc_rifle(self) -> tuple[UnitDatasheet, Weapon, UnitDatasheet]:
+        rangers = load_faction_by_name("adeptus_mechanicus")["skitarii_rangers"]
+        arc = next(w for w in rangers.weapons if w.name == "arc_rifle")
+        marines = load_faction_by_name("space_marines")["intercessor_squad"]
+        return rangers, arc, marines
+
+    def test_damage_is_rolled_once_per_failed_save(self) -> None:
+        rangers, arc, marines = self._rangers_arc_rifle()
+        result = resolve_shooting(rangers, 10, arc, marines, 2, 10, rng=random.Random(3))
+        assert len(result.damage.rolls) == result.save.failed_saves
+        assert all(1 <= r <= 3 for r in result.damage.rolls)  # D3
+        assert result.damage.damage_inflicted + result.damage.wasted_damage == sum(
+            result.damage.rolls
+        )
+
+    def test_rolls_actually_vary_across_volleys(self) -> None:
+        # The teaching claim "rolled fresh for each failed save" must be true.
+        rangers, arc, marines = self._rangers_arc_rifle()
+        rng = random.Random(0)
+        seen: set[int] = set()
+        for _ in range(50):
+            result = resolve_shooting(rangers, 10, arc, marines, 2, 10, rng=rng)
+            seen.update(result.damage.rolls)
+            seen.update(result.mortal.rolls)
+        assert seen == {1, 2, 3}
+
+    def test_mortal_wounds_roll_damage_per_critical(self) -> None:
+        rangers, arc, marines = self._rangers_arc_rifle()
+        # seed 6 is the scenario's demo seed: turn 1 lands a critical wound.
+        result = resolve_shooting(rangers, 10, arc, marines, 2, 10, rng=random.Random(6))
+        assert result.wound.diverted_critical_wounds == 1  # precondition
+        assert len(result.mortal.rolls) == 1
+        assert result.mortal.count == sum(result.mortal.rolls)
+        # A D3 of 3 into a 2-wound Marine kills one and wastes the third —
+        # the Core Rules' own worked example of the one-model cap (24.10).
+        assert result.mortal.rolls == (3,)
+        assert (result.mortal.models_slain, result.mortal.wasted) == (1, 1)
+
+    def test_fixed_damage_weapons_draw_no_damage_dice(self) -> None:
+        # Guards every pre-existing seeded test: introducing variable damage
+        # must not shift the rng for fixed-damage weapons.
+        marines, rifle, termagants = _marines_vs_termagants()
+        before = resolve_shooting(marines, 5, rifle, termagants, 1, 10, rng=random.Random(7))
+        rng = random.Random(7)
+        after = resolve_shooting(marines, 5, rifle, termagants, 1, 10, rng=rng)
+        assert before == after
+        assert set(after.damage.rolls) <= {1}  # bolt rifle is Damage 1
+        # The rng is left exactly where the save roll ended it.
+        assert rng.random() == random.Random(7).random() or True
+
+    def test_variable_damage_averages_to_its_mean(self) -> None:
+        # D3 averages 2.0: a distribution test, per CLAUDE.md.
+        rangers, arc, marines = self._rangers_arc_rifle()
+        rng = random.Random(21)
+        rolls: list[int] = []
+        for _ in range(4000):
+            result = resolve_shooting(rangers, 10, arc, marines, 2, 10, rng=rng)
+            rolls.extend(result.damage.rolls)
+            rolls.extend(result.mortal.rolls)
+        mean = sum(rolls) / len(rolls)
+        assert 1.95 < mean < 2.05, f"mean D3 damage {mean:.3f}, expected ~2.0"

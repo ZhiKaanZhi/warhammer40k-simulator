@@ -131,9 +131,18 @@ def _wound_line(wound: WoundStep) -> str:
 def _mortal_line(result: ShootingResult) -> str:
     mortal = result.mortal
     started_with = mortal.models_remaining + mortal.models_slain
+    crits = result.wound.diverted_critical_wounds
+    damage = result.attack.weapon.damage
+    if damage.is_variable and mortal.rolls:
+        dealt = (
+            f"{crits} critical x {damage} rolled "
+            f"{'+'.join(str(r) for r in mortal.rolls)} = {mortal.count}"
+        )
+    else:
+        dealt = f"{crits} critical x {damage} damage = {mortal.count}"
+    noun = "mortal wound" if mortal.count == 1 else "mortal wounds"
     line = (
-        f"MORTAL:  {result.wound.diverted_critical_wounds} critical x "
-        f"{result.attack.weapon.damage} damage = {mortal.count} mortal wounds, no saves "
+        f"MORTAL:  {dealt} {noun}, no saves "
         f"-> {mortal.models_slain} more slain; {mortal.models_remaining} of "
         f"{started_with} remain"
     )
@@ -143,7 +152,7 @@ def _mortal_line(result: ShootingResult) -> str:
             f" (lead model on {mortal.wounds_remaining_on_lead} of {wounds_per_model} wounds)"
         )
     if mortal.wasted:
-        line += f", {mortal.wasted} lost with the unit"
+        line += f", {mortal.wasted} wasted (one model per critical)"
     return line
 
 
@@ -175,9 +184,12 @@ def _save_line(save: SaveStep) -> str:
 def _damage_line(result: ShootingResult) -> str:
     damage = result.damage
     started_with = damage.models_remaining + damage.models_slain
+    if damage.damage.is_variable and damage.rolls:
+        dealt = f"{damage.damage} rolled {'+'.join(str(r) for r in damage.rolls)}"
+    else:
+        dealt = f"{result.save.failed_saves} failed saves x {damage.damage} damage"
     line = (
-        f"DAMAGE:  {result.save.failed_saves} failed saves x "
-        f"{damage.damage_per_failed_save} damage -> {damage.models_slain} models slain; "
+        f"DAMAGE:  {dealt} -> {damage.models_slain} models slain; "
         f"{damage.models_remaining} of {started_with} remain"
     )
     wounds_per_model = result.defender.profile.wounds

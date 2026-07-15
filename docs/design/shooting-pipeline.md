@@ -35,9 +35,21 @@ Each step runs in three beats: **(1)** before-roll hooks adjust how we roll → 
 
 ## Variable values (Attacks / Damage)
 
-`weapon.attacks` and `weapon.damage` may be a fixed `int` *or* a small frozen `DiceExpr` (`"D3"`, `"D6"`,
-`"D6+1"`, `"2D6"`). The pipeline rolls them so the random value lands inside the record as its own teaching
-moment. Needs a new `core.dice.roll_dice_expr` helper — the existing `roll_d6` only does pools-vs-target.
+**Damage: implemented.** `weapon.damage` is a frozen `DiceValue` (`core/models.py`) — a fixed `int` *or* a
+small dice value (`"D3"`, `"D6"`, `"D6+1"`, `"2D6"`; only D3/D6 dice accepted by the loader). The JSON accepts
+either form and the loader coerces, so `"damage": 1` and `"damage": "D3"` both work and bad notation fails at
+load time naming the weapon. The damage step rolls it **per failed save** and the mortal-wound step **per
+critical wound**, recording each rolled value in `DamageStep.rolls` / `MortalWoundsStep.rolls` so the random
+value lands inside the record as its own teaching moment (the narrator prints "D3 rolled 2"). A fixed value
+draws no dice at all, which is what keeps every pre-existing seeded scenario byte-identical. `DiceValue.average`
+is what `core/expected.py` reads, so the AI scores a D3 gun as its mean.
+
+No `core.dice` helper was needed: `roll_d6` does pools-vs-target, which is a different job — `DiceValue.roll`
+owns "sample this characteristic" and is the only other place a die is drawn.
+
+**Attacks: still deferred.** `weapon.attacks` stays a fixed `int` (the loader rejects `"D6"` attacks). Variable
+attacks are rolled *per model* (finding #3 below), so `AttackStep` must record one roll per model rather than
+one for the pool — a bigger change than Damage, and no shipped unit needs it yet.
 
 ## Hook framework (ADR 0002)
 
@@ -108,7 +120,7 @@ against the official 11th Core Rules PDF on **2026-07-03** (see *Primary-source 
 |---|---|---|
 | Sustained + Lethal on one crit | ✅ both fire off the same unmodified 6; Sustained's *extra* hits are **not** crits (only the natural 6 auto-wounds) | Confirms "read immutable `critical_hits`" (ADR 0002); Sustained adds *normal* hits. |
 | Lethal Hits | ✅ auto-wounds (skips wound roll); **saves still apply** | Matches the `auto_wounds` bucket. |
-| Variable Attacks | ✅ **per weapon/model** at the Core Rules level: attack dice are gathered weapon by weapon (04.03), and the re-roll rules treat the roll that determines a weapon's attack count as belonging to that one weapon. The dedicated *Random Characteristics* entry lives in the Rules Commentary, **which 11th has not published yet** (checked 2026-07-03) — re-check its exact wording when it appears | When variable attacks are implemented, `AttackStep` must record one roll per model. Shipped phase-3 code deliberately defers `DiceExpr` attacks (loader rejects them), so **no code change today**. |
+| Variable Attacks | ✅ **per weapon/model** at the Core Rules level: attack dice are gathered weapon by weapon (04.03), and the re-roll rules treat the roll that determines a weapon's attack count as belonging to that one weapon. The dedicated *Random Characteristics* entry lives in the Rules Commentary, **which 11th has not published yet** (checked 2026-07-03) — re-check its exact wording when it appears | When variable attacks are implemented, `AttackStep` must record one roll per model. Shipped code deliberately defers dice-valued attacks (loader rejects them), so **no code change today**. Variable *Damage* is implemented (rolled per failed save / per critical wound) — it has no per-model subtlety. |
 | Damage no-spillover | ✅ excess on a slain model is lost; one-at-a-time. General mortal wounds (06.02) *do* spill, **but Devastating Wounds mortals (24.10) are capped at one model per critical wound — no spillover** | Matches `wasted`. Mortal-wound path is separate but *non-spilling*: each crit's Damage-many mortals fill one model, overkill wasted. |
 | Modifier cap | ✅ ±1 net on hit/wound. Saves: **+1 improvement cap only**, no symmetric −1 (worsening is AP, uncapped) | Clamp save *improvements* to +1; never clamp AP. |
 | Re-rolls | ✅ once only; "re-roll failed" ⊃ "re-roll 1s" | Confirms "most generous" combination (ADR 0002). |

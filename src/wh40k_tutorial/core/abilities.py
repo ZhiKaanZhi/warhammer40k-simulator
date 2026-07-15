@@ -101,7 +101,6 @@ class WoundAdjustment:
     """What wound-step after-roll hooks contribute; summed componentwise."""
 
     diverted_critical_wounds: int = 0  # pulled out before saves (Devastating Wounds)
-    mortal_wounds: int = 0  # total mortals (crits x Damage); combat caps each crit to one model
 
 
 HitHook = Callable[[RollResult, Weapon, int | None], HitAdjustment]
@@ -123,11 +122,10 @@ def _lethal_hits(roll: RollResult, weapon: Weapon, value: int | None) -> HitAdju
 
 
 def _devastating_wounds(roll: RollResult, weapon: Weapon, value: int | None) -> WoundAdjustment:
-    criticals = roll.critical_hits  # natural 6s on this (wound) roll
-    return WoundAdjustment(
-        diverted_critical_wounds=criticals,
-        mortal_wounds=criticals * weapon.damage,
-    )
+    # Report only how many criticals to divert; the mortal-wound step rolls
+    # each crit's Damage and applies the one-model cap (24.10). Keeping the
+    # Damage out of here means variable Damage (D3/D6) needs no special case.
+    return WoundAdjustment(diverted_critical_wounds=roll.critical_hits)
 
 
 # Registries: keyword name -> hook, per step and moment. Empty registries are
@@ -185,11 +183,10 @@ def hit_adjustment(roll: RollResult, weapon: Weapon) -> HitAdjustment:
 
 def wound_adjustment(roll: RollResult, weapon: Weapon) -> WoundAdjustment:
     """Sum every registered wound-step after-roll hook the weapon's keywords name."""
-    diverted = mortal = 0
+    diverted = 0
     for kw in weapon.parsed_keywords:
         hook = WOUND_AFTER.get(kw.name)
         if hook is not None:
             adj = hook(roll, weapon, kw.value)
             diverted += adj.diverted_critical_wounds
-            mortal += adj.mortal_wounds
-    return WoundAdjustment(diverted_critical_wounds=diverted, mortal_wounds=mortal)
+    return WoundAdjustment(diverted_critical_wounds=diverted)

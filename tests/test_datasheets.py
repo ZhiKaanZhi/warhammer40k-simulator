@@ -94,7 +94,7 @@ class TestPackagedFactions:
         rifle = {w.name: w for w in squad.weapons}["bolt_rifle"]
         assert rifle.display_name == "Bolt Rifle"
         assert (rifle.range, rifle.attacks, rifle.skill) == (24, 2, 3)
-        assert (rifle.strength, rifle.ap, rifle.damage) == (4, 1, 1)
+        assert (rifle.strength, rifle.ap, str(rifle.damage)) == (4, 1, "1")
         assert rifle.keywords == ("assault", "heavy")
         ccw = {w.name: w for w in squad.weapons}["close_combat_weapon"]
         assert ccw.attacks == 3
@@ -109,7 +109,7 @@ class TestPackagedFactions:
         assert (p.toughness, p.save, p.wounds) == (3, 5, 1)
         borer = {w.name: w for w in swarm.weapons}["fleshborer"]
         assert (borer.range, borer.attacks, borer.skill) == (18, 1, 4)
-        assert (borer.strength, borer.ap, borer.damage) == (5, 0, 1)
+        assert (borer.strength, borer.ap, str(borer.damage)) == (5, 0, "1")
         assert borer.keywords == ("assault",)
         assert swarm.default_model_count == 10
         assert (swarm.min_model_count, swarm.max_model_count) == (10, 20)

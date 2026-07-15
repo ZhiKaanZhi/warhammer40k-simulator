@@ -12,9 +12,10 @@ can explain each roll without re-deriving any rules (ADR 0001).
 
 Keyword abilities (build phase 7) hook in via ``core.abilities``: before-roll
 tweaks and after-roll pool adjustments per step, handed between steps through
-generic carry fields (``HitStep.auto_wounds``, ``WoundStep.mortal_wounds``,
-...) that default to "no ability" values, so a keywordless weapon flows
-through unchanged (ADR 0002). The mortal-wound step at the end resolves
+generic carry fields (``HitStep.auto_wounds``,
+``WoundStep.diverted_critical_wounds``, ...) that default to "no ability"
+values, so a keywordless weapon flows through unchanged (ADR 0002). The
+mortal-wound step at the end resolves
 Devastating Wounds' per-critical mortal packets after normal damage (each
 capped to one model, no spillover — rule 24.10); a weapon without it records
 zeros and mirrors the damage step's final state.
@@ -31,7 +32,7 @@ from dataclasses import dataclass
 
 from wh40k_tutorial.core import abilities
 from wh40k_tutorial.core.dice import RollResult, roll_d6, save_target, wound_target
-from wh40k_tutorial.core.models import Profile, UnitDatasheet, Weapon
+from wh40k_tutorial.core.models import DiceValue, Profile, UnitDatasheet, Weapon
 
 
 @dataclass(frozen=True)
@@ -71,10 +72,9 @@ class WoundStep:
     toughness: int
     wounds: int           # successful wound rolls plus any carried auto-wounds
     critical_wounds: int  # natural 6s — the trigger for Devastating Wounds
-    # Generic carries (ADR 0002): Devastating Wounds pulls critical wounds
-    # out of the save/damage path and queues single-wound mortal packets.
+    # Generic carry (ADR 0002): Devastating Wounds pulls critical wounds out of
+    # the save/damage path; the mortal-wound step rolls each crit's Damage.
     diverted_critical_wounds: int = 0
-    mortal_wounds: int = 0
 
     @property
     def savable_wounds(self) -> int:
@@ -116,7 +116,8 @@ class DamageStep:
     CONTEXT.md.)
     """
 
-    damage_per_failed_save: int
+    damage: DiceValue       # the weapon's Damage characteristic (fixed or dice)
+    rolls: tuple[int, ...]   # Damage rolled per failed save (constant for fixed Damage)
     damage_inflicted: int   # damage that actually removed wounds
     wasted_damage: int      # overkill lost on slain models (or a destroyed unit)
     models_slain: int
@@ -143,6 +144,7 @@ class MortalWoundsStep:
     """
 
     count: int
+    rolls: tuple[int, ...]  # mortal wounds rolled per critical wound (== count summed)
     inflicted: int
     wasted: int  # packets lost because the unit was already destroyed
     models_slain: int
@@ -245,13 +247,15 @@ def _resolve_attack_sequence(
         wounds_per_model=defender.profile.wounds,
         wounds_on_lead=defender_wounds_remaining,
         model_count=defender_model_count,
+        rng=rng,
     )
     mortal = _resolve_mortal_wounds(
         critical_wounds=wound.diverted_critical_wounds,
-        damage_per_crit=weapon.damage,
+        damage=weapon.damage,
         wounds_per_model=defender.profile.wounds,
         wounds_on_lead=damage.wounds_remaining_on_lead,
         model_count=damage.models_remaining,
+        rng=rng,
     )
     return ShootingResult(
         attacker=attacker,
@@ -306,7 +310,6 @@ def _roll_wounds(hit: HitStep, weapon: Weapon, toughness: int, rng: random.Rando
         wounds=roll.successes + hit.auto_wounds,
         critical_wounds=roll.critical_hits,
         diverted_critical_wounds=adj.diverted_critical_wounds,
-        mortal_wounds=adj.mortal_wounds,
     )
 
 
@@ -337,34 +340,40 @@ def _roll_saves(wounds: int, profile: Profile, ap: int, rng: random.Random) -> S
 def _allocate_damage(
     *,
     failed_saves: int,
-    damage: int,
+    damage: DiceValue,
     wounds_per_model: int,
     wounds_on_lead: int,
     model_count: int,
+    rng: random.Random,
 ) -> DamageStep:
     """Allocate damage one failed save at a time, filling a model before the next.
 
-    Excess damage on a model that dies is wasted, never carried to the next
-    model. Failed saves against an already-destroyed unit are also recorded
-    as wasted — the "your volley was bigger than the target" teaching signal.
+    Each failed save deals a freshly rolled Damage (a constant for fixed
+    Damage — no rng is drawn there, so existing seeds are undisturbed; a new
+    D3/D6 sample per save otherwise). Excess damage on a model that dies is
+    wasted, never carried to the next model. Failed saves against an
+    already-destroyed unit are also recorded as wasted — the "your volley was
+    bigger than the target" teaching signal.
     """
+    rolls = tuple(damage.roll(rng) for _ in range(failed_saves))
     models_left = model_count
     current = wounds_on_lead if models_left > 0 else 0
     inflicted = wasted = slain = 0
-    for _ in range(failed_saves):
+    for dealt in rolls:
         if models_left == 0:
-            wasted += damage
+            wasted += dealt
             continue
-        applied = min(damage, current)
+        applied = min(dealt, current)
         inflicted += applied
-        wasted += damage - applied
+        wasted += dealt - applied
         current -= applied
         if current == 0:
             slain += 1
             models_left -= 1
             current = wounds_per_model if models_left > 0 else 0
     return DamageStep(
-        damage_per_failed_save=damage,
+        damage=damage,
+        rolls=rolls,
         damage_inflicted=inflicted,
         wasted_damage=wasted,
         models_slain=slain,
@@ -376,39 +385,43 @@ def _allocate_damage(
 def _resolve_mortal_wounds(
     *,
     critical_wounds: int,
-    damage_per_crit: int,
+    damage: DiceValue,
     wounds_per_model: int,
     wounds_on_lead: int,
     model_count: int,
+    rng: random.Random,
 ) -> MortalWoundsStep:
     """Inflict Devastating Wounds mortal wounds, one critical wound at a time (24.10).
 
-    Each critical wound inflicts ``damage_per_crit`` mortal wounds against a
-    *single* model — the wounded lead model absorbs first, which is the lead
-    in our uniform units — and any of that crit's mortals beyond the model's
-    remaining wounds are lost. This is the one-model cap from rule 24.10:
-    unlike the general mortal-wound rule (06.02), Devastating Wounds mortals
-    do **not** spill to a second model, so a crit's allocation is exactly the
-    normal-damage allocation (fill one model, waste the overkill) minus the
-    saving throw. Crits with no model left to strike are wasted whole.
+    Each critical wound rolls the weapon's Damage (fixed draws nothing;
+    D3/D6 a fresh sample per crit) and inflicts that many mortal wounds
+    against a *single* model — the wounded lead model absorbs first, which is
+    the lead in our uniform units — and any of that crit's mortals beyond the
+    model's remaining wounds are lost. This is the one-model cap from rule
+    24.10: unlike the general mortal-wound rule (06.02), Devastating Wounds
+    mortals do **not** spill to a second model, so a crit's allocation is
+    exactly the normal-damage allocation (fill one model, waste the overkill)
+    minus the saving throw. Crits with no model left to strike are wasted whole.
     """
+    rolls = tuple(damage.roll(rng) for _ in range(critical_wounds))
     models_left = model_count
     current = wounds_on_lead if models_left > 0 else 0
     inflicted = wasted = slain = 0
-    for _ in range(critical_wounds):
+    for dealt in rolls:
         if models_left == 0:
-            wasted += damage_per_crit
+            wasted += dealt
             continue
-        applied = min(damage_per_crit, current)
+        applied = min(dealt, current)
         inflicted += applied
-        wasted += damage_per_crit - applied  # overkill: this crit can't spill onward
+        wasted += dealt - applied  # overkill: this crit can't spill onward
         current -= applied
         if current == 0:
             slain += 1
             models_left -= 1
             current = wounds_per_model if models_left > 0 else 0
     return MortalWoundsStep(
-        count=critical_wounds * damage_per_crit,
+        count=sum(rolls),
+        rolls=rolls,
         inflicted=inflicted,
         wasted=wasted,
         models_slain=slain,

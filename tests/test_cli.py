@@ -149,6 +149,25 @@ class TestAbilityScenarioEndToEnd:
         assert "still gets saves" in out                 # ...and its saves caveat
         assert "auto-wound is not an auto-kill" in out   # the outro's core lesson
 
+    def test_devastating_wounds_shows_mortals_and_the_one_model_cap(self) -> None:
+        result = CliRunner().invoke(
+            main, ["play", "07_devastating_wounds", "--seed", "6"], input="\n\n"
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+        # The override armed the arc rifle (galvanic rifle absent).
+        assert "Weapon: Arc Rifle" in out
+        assert "Galvanic Rifle" not in out
+        # Variable damage is rolled and shown, not assumed.
+        assert "D3 rolled" in out
+        # Turn 1 (seed 6): a critical wound bypasses the save and wastes its
+        # overkill on a 2-wound Marine — the rulebook's own example, live.
+        assert "critical diverted to mortal wounds" in out
+        assert "wasted (one model per critical)" in out
+        assert "no armour or invulnerable save can stop" in out
+        assert "Each critical wound strikes just one model." in out
+        assert "a scalpel, not an avalanche" in out   # the outro's core lesson
+
     def test_return_fire_ai_targets_the_softer_unit(self) -> None:
         result = CliRunner().invoke(
             main,

@@ -55,6 +55,11 @@ def narrate_volley(result: ShootingResult) -> tuple[StepNarration, ...]:
     return tuple(narrations)
 
 
+def _article(word: str) -> str:
+    """"a"/"an" for a display name — unit names are plain English, so the vowel test suffices."""
+    return "an" if word[:1].lower() in "aeiou" else "a"
+
+
 def _plural(count: int, singular: str, plural: str | None = None) -> str:
     if count == 1:
         return singular
@@ -230,22 +235,46 @@ _SAVE_EXPANSION = (
 
 def _damage_inline(result: ShootingResult) -> str:
     d = result.damage
-    per = d.damage_per_failed_save
+    dmg = d.damage
     wounds_per_model = result.defender.profile.wounds
     defender = result.defender.display_name
-    line = f"Each failed save deals the weapon's Damage — {per} here — to one model at a time."
-    if wounds_per_model == 1:
-        line += f" {defender} have a single wound apiece, so every failed save drops a model."
-    elif per >= wounds_per_model:
-        line += (
-            f" A {defender} model has {wounds_per_model} wounds and takes {per} at "
-            f"once, so every failed save drops one."
+    if dmg.is_variable:
+        rolled = ", ".join(str(r) for r in d.rolls)
+        line = (
+            f"This weapon's Damage is {dmg}, rolled fresh for each failed save"
+            + (f" — {rolled} here." if d.rolls else " — but no saves failed.")
         )
+        if wounds_per_model == 1:
+            line += f" {defender} have one wound apiece, so any failed save drops a model."
+        elif dmg.minimum >= wounds_per_model:
+            line += (
+                f" {_article(defender).capitalize()} {defender} model has {wounds_per_model} "
+                f"wounds, and even the lowest "
+                f"roll ({dmg.minimum}) is enough to drop one."
+            )
+        else:
+            line += (
+                f" {_article(defender).capitalize()} {defender} model has {wounds_per_model} "
+                f"wounds, so a low roll can "
+                f"leave one standing where a high roll fells it."
+            )
     else:
-        line += (
-            f" A {defender} model has {wounds_per_model} wounds, so failed saves "
-            f"pile onto the same front model until it falls, then move to the next."
-        )
+        per = dmg.minimum  # a fixed value: minimum == maximum == the number
+        line = f"Each failed save deals the weapon's Damage — {per} here — to one model at a time."
+        if wounds_per_model == 1:
+            line += f" {defender} have a single wound apiece, so every failed save drops a model."
+        elif per >= wounds_per_model:
+            line += (
+                f" {_article(defender).capitalize()} {defender} model has {wounds_per_model} "
+                f"wounds and takes {per} at "
+                f"once, so every failed save drops one."
+            )
+        else:
+            line += (
+                f" {_article(defender).capitalize()} {defender} model has {wounds_per_model} "
+                f"wounds, so failed saves "
+                f"pile onto the same front model until it falls, then move to the next."
+            )
     if d.wasted_damage:
         pts = _plural(d.wasted_damage, "point")
         line += (
@@ -259,10 +288,12 @@ def _mortal_inline(result: ShootingResult) -> str:
     m = result.mortal
     weapon = result.attack.weapon
     crits = result.wound.diverted_critical_wounds
-    if weapon.damage > 1:
-        breakdown = f"{crits} critical {_plural(crits, 'wound')} x {weapon.damage} = {m.count}"
-    else:
+    dmg = weapon.damage
+    simple = (not dmg.is_variable) and dmg.minimum == 1
+    if simple:
         breakdown = f"{m.count} ({crits} critical {_plural(crits, 'wound')})"
+    else:
+        breakdown = f"{crits} critical {_plural(crits, 'wound')} x {dmg} = {m.count}"
     line = (
         f"Devastating Wounds turns each critical wound into the weapon's Damage in "
         f"mortal wounds — {breakdown} that no armour or invulnerable save can stop, "
@@ -298,5 +329,6 @@ _DAMAGE_EXPANSION = (
     "never spills over — if a killing blow deals more than the model had left, "
     "the surplus is wasted, the tell-tale sign of overkill (a weapon heavier than "
     "its target needs). A partially damaged model keeps its missing wounds into "
-    "later volleys."
+    "later volleys. When Damage is a die — D3, D6 — it is rolled separately for "
+    "each failed save, so one volley can deal a different amount to each casualty."
 )

@@ -166,6 +166,24 @@ class TestExactValues:
         assert vs_warriors == pytest.approx(10 * (3 / 6) * (4 / 6) * (3 / 6))
         assert vs_warriors == pytest.approx(2 * vs_immortals)
 
+    def test_variable_damage_scores_by_its_average(self) -> None:
+        # D3 averages 2.0, so a D3 gun must score exactly what a flat-2 gun does.
+        d3 = _weapon(skill=4, damage="D3")
+        flat = _weapon(skill=4, damage=2)
+        target = _profile()
+        assert expected_damage(10, d3, target) == pytest.approx(expected_damage(10, flat, target))
+
+    def test_arc_rifle_vs_intercessors_matches_hand_computation(self) -> None:
+        # 10 arc rifles: hit 4+ (1/2), wound 2+ (5/6, S8 vs T4), of which
+        # 1/6 crit into D3 mortals (avg 2, no save); the rest face a 4+ save
+        # (3+ armour, AP -1) and deal D3 on a fail.
+        arc = _weapon_of(RANGERS, "arc_rifle")
+        hits = 10 * (1 / 2)
+        crits = hits * (1 / 6)
+        savable = hits * (5 / 6) - crits
+        expected = savable * (1 / 2) * 2.0 + crits * 2.0
+        assert expected_damage(10, arc, MARINES.profile) == pytest.approx(expected)
+
     def test_inert_keywords_contribute_nothing(self) -> None:
         # rapid_fire_1 and assault have no hook in v1; the estimator must
         # mirror the engine, not the rulebook.
@@ -183,13 +201,22 @@ _RUNS = 20_000
 _TOLERANCE = 0.15
 
 
-def _damage_dealt(result: ShootingResult, defender: UnitDatasheet, models: int) -> int:
-    wounds_per_model = defender.profile.wounds
-    before = models * wounds_per_model
-    if result.models_remaining == 0:
-        return before
-    after = (result.models_remaining - 1) * wounds_per_model + result.wounds_remaining_on_lead
-    return before - after
+def _raw_damage(result: ShootingResult) -> int:
+    """Total damage the volley *produced*, overkill included.
+
+    `expected_damage` is documented as a raw-damage estimate: it ignores
+    per-model overkill. So the fair comparison is what the pipeline rolled,
+    not what the defender actually lost — otherwise a weapon whose Damage
+    doesn't divide the target's wounds (D3 into 2-wound Marines) would look
+    like estimator drift when it is really the documented approximation.
+    `test_raw_estimate_overstates_effective_damage_on_overkill` pins that gap.
+    """
+    return (
+        result.damage.damage_inflicted
+        + result.damage.wasted_damage
+        + result.mortal.inflicted
+        + result.mortal.wasted
+    )
 
 
 def _monte_carlo_mean(
@@ -211,7 +238,39 @@ def _monte_carlo_mean(
             defender_models,
             rng=rng,
         )
-        total += _damage_dealt(result, defender, defender_models)
+        total += _raw_damage(result)
+    return total / _RUNS
+
+
+def _effective_damage_mean(
+    attacker: UnitDatasheet,
+    attacker_models: int,
+    weapon: Weapon,
+    defender: UnitDatasheet,
+    defender_models: int,
+) -> float:
+    """Mean wounds the defender actually lost (overkill excluded)."""
+    rng = random.Random(2026)
+    wounds_per_model = defender.profile.wounds
+    total = 0
+    for _ in range(_RUNS):
+        result = resolve_shooting(
+            attacker,
+            attacker_models,
+            weapon,
+            defender,
+            wounds_per_model,
+            defender_models,
+            rng=rng,
+        )
+        before = defender_models * wounds_per_model
+        if result.models_remaining == 0:
+            total += before
+        else:
+            after = (
+                result.models_remaining - 1
+            ) * wounds_per_model + result.wounds_remaining_on_lead
+            total += before - after
     return total / _RUNS
 
 
@@ -235,6 +294,28 @@ class TestMonteCarloAgreement:
         assert mean == pytest.approx(
             expected_damage(10, flayer, MARINES.profile), abs=_TOLERANCE
         )
+
+    def test_arc_rifle_variable_damage_vs_intercessors(self) -> None:
+        # The estimator reads D3's average; the pipeline rolls it. They must agree.
+        arc = _weapon_of(RANGERS, "arc_rifle")
+        mean = _monte_carlo_mean(RANGERS, 10, arc, MARINES, 10)
+        assert mean == pytest.approx(
+            expected_damage(10, arc, MARINES.profile), abs=_TOLERANCE
+        )
+
+    def test_raw_estimate_overstates_effective_damage_on_overkill(self) -> None:
+        # The documented approximation, made visible: a D3 arc rifle into
+        # 2-wound Marines produces ~5.0 raw damage per volley but strips only
+        # ~3.9 wounds, because D3 doesn't divide 2 evenly and the surplus is
+        # wasted. The heuristic AI is unaffected — it caps scores at the
+        # target's remaining wounds — but nothing here may pretend the raw
+        # estimate is effective damage.
+        arc = _weapon_of(RANGERS, "arc_rifle")
+        raw = expected_damage(10, arc, MARINES.profile)
+        effective = _effective_damage_mean(RANGERS, 10, arc, MARINES, 10)
+        assert raw == pytest.approx(5.0, abs=_TOLERANCE)
+        assert effective < raw - 0.5
+        assert effective == pytest.approx(3.85, abs=0.15)
 
     def test_devastating_wounds_with_multi_damage(self) -> None:
         weapon = _weapon(attacks=2, skill=4, damage=2, keywords=("devastating_wounds",))

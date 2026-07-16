@@ -366,3 +366,187 @@ class TestActionValidation:
     def test_seed_zero_really_tables_the_lone_termagant(self) -> None:
         result = resolve_shooting(MARINES, 5, BOLT_RIFLE, GANTS, 1, 1, rng=random.Random(0))
         assert result.damage.models_remaining == 0
+
+
+# ---------------------------------------------------------------------------
+# The fight phase: alternation, mandatory fighting, casualty timing
+# ---------------------------------------------------------------------------
+
+FIGHT = "fight"
+MARINE_BLADE = "close_combat_weapon"
+GANT_CLAWS = "claws_and_teeth"
+
+FIGHT_TURN = (ScenarioTurn("fight", "attacker"),)
+
+
+def _fight_scenario(
+    attacker_units: tuple[ScenarioUnit, ...],
+    defender_units: tuple[ScenarioUnit, ...],
+    turns: tuple[ScenarioTurn, ...] = FIGHT_TURN,
+) -> Scenario:
+    return _scenario(attacker_units, defender_units, turns)
+
+
+def _run_fight(
+    scenario: Scenario,
+    attacker_script: list[Action],
+    defender_script: list[Action],
+    *,
+    seed: int = 7,
+) -> tuple[BattleState, list[VolleyEvent]]:
+    events: list[VolleyEvent] = []
+    state = run_scenario(
+        scenario,
+        {
+            "attacker": ScriptedStrategy(attacker_script),
+            "defender": ScriptedStrategy(defender_script),
+        },
+        rng=random.Random(seed),
+        on_volley=events.append,
+    )
+    return state, events
+
+
+class TestFightPhase:
+    def test_active_side_picks_first_then_players_alternate(self) -> None:
+        """Two separate combats: the side whose turn it is picks first, then
+        the pick passes across the table after every fight (12.04)."""
+        scenario = _fight_scenario(
+            (
+                ScenarioUnit("m1", MARINES, (4, 4), 5),
+                ScenarioUnit("m2", MARINES, (4, 6), 5),
+            ),
+            (
+                ScenarioUnit("g1", GANTS, (5, 4), 10),
+                ScenarioUnit("g2", GANTS, (5, 6), 10),
+            ),
+        )
+        _, events = _run_fight(
+            scenario,
+            [Action(FIGHT, "m1", MARINE_BLADE, "g1"), Action(FIGHT, "m2", MARINE_BLADE, "g2")],
+            [Action(FIGHT, "g1", GANT_CLAWS, "m1"), Action(FIGHT, "g2", GANT_CLAWS, "m2")],
+        )
+        assert [e.action.attacker_unit_id for e in events] == ["m1", "g1", "m2", "g2"]
+        assert all(e.phase == "fight" and e.action.kind == "fight" for e in events)
+
+    def test_a_side_with_nothing_eligible_passes_back(self) -> None:
+        """Attacker has two engaged units, defender one: once the defender's
+        script is spent the pick returns to the attacker (12.04's pass rule)."""
+        scenario = _fight_scenario(
+            (
+                ScenarioUnit("m1", MARINES, (4, 4), 5),
+                ScenarioUnit("m2", MARINES, (6, 4), 5),
+            ),
+            (ScenarioUnit("g1", GANTS, (5, 4), 20),),
+        )
+        _, events = _run_fight(
+            scenario,
+            [Action(FIGHT, "m1", MARINE_BLADE, "g1"), Action(FIGHT, "m2", MARINE_BLADE, "g1")],
+            [Action(FIGHT, "g1", GANT_CLAWS, "m1")],
+        )
+        assert [e.action.attacker_unit_id for e in events] == ["m1", "g1", "m2"]
+
+    def test_casualties_come_off_before_the_return_swing(self) -> None:
+        """The phase's central lesson: a unit selected to fight later swings
+        with only the models that survived the earlier fights."""
+        scenario = _fight_scenario(
+            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
+            (ScenarioUnit("g1", GANTS, (5, 4), 10),),
+        )
+        _, events = _run_fight(
+            scenario,
+            [Action(FIGHT, "m1", MARINE_BLADE, "g1")],
+            [Action(FIGHT, "g1", GANT_CLAWS, "m1")],
+        )
+        first, second = events
+        assert first.action.attacker_unit_id == "m1"
+        assert second.action.attacker_unit_id == "g1"
+        # Whatever the dice said, the return swing uses the survivor count...
+        assert second.result.attack.attacker_models == first.result.models_remaining
+        # ...and at this seed Marines do kill Termagants, so it is a real cut.
+        assert first.result.models_remaining < 10
+
+    def test_a_unit_fights_once_per_phase(self) -> None:
+        scenario = _fight_scenario(
+            (
+                ScenarioUnit("m1", MARINES, (4, 4), 5),
+                ScenarioUnit("m2", MARINES, (6, 4), 5),
+            ),
+            (ScenarioUnit("g1", GANTS, (5, 4), 20),),
+        )
+        with pytest.raises(EngineError, match="already fought"):
+            _run_fight(
+                scenario,
+                [Action(FIGHT, "m1", MARINE_BLADE, "g1"), Action(FIGHT, "m1", MARINE_BLADE, "g1")],
+                [Action(FIGHT, "g1", GANT_CLAWS, "m1")],
+            )
+
+    def test_melee_must_target_an_engaged_unit(self) -> None:
+        scenario = _fight_scenario(
+            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
+            (
+                ScenarioUnit("g1", GANTS, (5, 4), 10),
+                ScenarioUnit("g2", GANTS, (9, 4), 10),
+            ),
+        )
+        with pytest.raises(EngineError, match="engagement range"):
+            _run_fight(scenario, [Action(FIGHT, "m1", MARINE_BLADE, "g2")], [])
+
+    def test_shoot_actions_are_not_legal_in_a_fight_phase(self) -> None:
+        scenario = _fight_scenario(
+            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
+            (ScenarioUnit("g1", GANTS, (5, 4), 10),),
+        )
+        with pytest.raises(EngineError, match="not legal in a fight phase"):
+            _run_fight(scenario, [Action(SHOOT, "m1", "bolt_rifle", "g1")], [])
+
+    def test_fight_actions_are_not_legal_in_a_shooting_phase(self) -> None:
+        scenario = _scenario(
+            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
+            (ScenarioUnit("g1", GANTS, (5, 4), 10),),
+            ONE_ATTACKER_TURN,
+        )
+        with pytest.raises(EngineError, match="not legal in a shooting phase"):
+            _run_fight(scenario, [Action(FIGHT, "m1", MARINE_BLADE, "g1")], [])
+
+    def test_ranged_weapons_cannot_be_swung(self) -> None:
+        scenario = _fight_scenario(
+            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
+            (ScenarioUnit("g1", GANTS, (5, 4), 10),),
+        )
+        with pytest.raises(EngineError, match="cannot be swung"):
+            _run_fight(scenario, [Action(FIGHT, "m1", "bolt_rifle", "g1")], [])
+
+    def test_shot_and_fought_flags_reset_between_turns(self) -> None:
+        """The same unit may shoot in a shooting turn and fight in the next
+        fight turn — the per-phase activation sets are per turn entry."""
+        scenario = _scenario(
+            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
+            (ScenarioUnit("g1", GANTS, (5, 4), 20),),
+            (ScenarioTurn("shooting", "attacker"), ScenarioTurn("fight", "attacker")),
+        )
+        _, events = _run_fight(
+            scenario,
+            [
+                Action(SHOOT, "m1", "bolt_rifle", "g1"),
+                Action(FIGHT, "m1", MARINE_BLADE, "g1"),
+            ],
+            [Action(FIGHT, "g1", GANT_CLAWS, "m1")],
+        )
+        assert [e.action.kind for e in events] == ["shoot", "fight", "fight"]
+        assert [e.action.attacker_unit_id for e in events] == ["m1", "m1", "g1"]
+
+    def test_fight_phase_ends_the_moment_a_side_is_wiped(self) -> None:
+        """A single Termagant cannot survive five Marines at this seed: the
+        return swing never happens and the extra script is never consulted."""
+        scenario = _fight_scenario(
+            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
+            (ScenarioUnit("g1", GANTS, (5, 4), 1),),
+        )
+        state, events = _run_fight(
+            scenario,
+            [Action(FIGHT, "m1", MARINE_BLADE, "g1")],
+            [Action(FIGHT, "g1", GANT_CLAWS, "m1")],
+        )
+        assert len(events) == 1
+        assert state.side_wiped("defender")

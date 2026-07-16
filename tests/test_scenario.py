@@ -18,6 +18,7 @@ from wh40k_tutorial.core.scenario import (
     Scenario,
     ScenarioDataError,
     available_scenarios,
+    in_engagement_range,
     load_scenario,
     load_scenario_by_id,
     opposing_side,
@@ -470,3 +471,103 @@ class TestOpponentStrategy:
             {"attacker": "marines_1", "weapon": "bolt_rifle", "target": "termagants_1"}
         ]
         assert _load(tmp_path, data).opponent_strategy == "heuristic"
+
+
+# ---------------------------------------------------------------------------
+# Fight turns: engagement, melee scripting, and the conventions around them
+# ---------------------------------------------------------------------------
+
+
+def _fight_base() -> dict:
+    """The minimal scenario, repositioned into engagement and given a fight turn."""
+    data = _base()
+    data["sides"]["attacker"]["units"][0]["position"] = [4, 4]
+    data["sides"]["defender"]["units"][0]["position"] = [5, 4]
+    data["turns"] = [{"phase": "fight", "active_side": "attacker"}]
+    return data
+
+
+class TestEngagementGeometry:
+    @pytest.mark.parametrize(
+        ("a", "b", "engaged"),
+        [
+            ((4, 4), (5, 4), True),   # orthogonal neighbour
+            ((4, 4), (5, 5), True),   # diagonal neighbour
+            ((4, 4), (4, 3), True),
+            ((4, 4), (6, 4), False),  # one square of daylight
+            ((4, 4), (6, 6), False),
+            ((4, 4), (4, 4), True),   # same square (placement forbids it anyway)
+        ],
+    )
+    def test_adjacency_is_engagement(
+        self, a: tuple[int, int], b: tuple[int, int], engaged: bool
+    ) -> None:
+        assert in_engagement_range(a, b) is engaged
+        assert in_engagement_range(b, a) is engaged  # symmetric
+
+
+class TestFightTurns:
+    def test_fight_turn_with_an_engaged_pair_loads(self, tmp_path: Path) -> None:
+        scenario = _load(tmp_path, _fight_base())
+        assert scenario.turns[0].phase == "fight"
+
+    def test_diagonal_engagement_counts(self, tmp_path: Path) -> None:
+        data = _fight_base()
+        data["sides"]["defender"]["units"][0]["position"] = [5, 5]
+        assert _load(tmp_path, data).turns[0].phase == "fight"
+
+    def test_fight_turn_without_an_engaged_pair_is_rejected(self, tmp_path: Path) -> None:
+        data = _fight_base()
+        data["sides"]["defender"]["units"][0]["position"] = [9, 4]
+        with pytest.raises(ScenarioDataError, match="engaged pair"):
+            _load(tmp_path, data)
+
+    def test_scripted_fight_needs_a_melee_weapon(self, tmp_path: Path) -> None:
+        data = _fight_base()
+        data["turns"][0]["actions"] = [
+            {"attacker": "termagants_1", "weapon": "fleshborer", "target": "marines_1"}
+        ]
+        with pytest.raises(ScenarioDataError, match="need a melee weapon"):
+            _load(tmp_path, data)
+
+    def test_scripted_ranged_action_still_needs_a_ranged_weapon(self, tmp_path: Path) -> None:
+        data = _base()
+        data["turns"][0]["actions"] = [
+            {"attacker": "marines_1", "weapon": "close_combat_weapon", "target": "termagants_1"}
+        ]
+        with pytest.raises(ScenarioDataError, match="need a ranged weapon"):
+            _load(tmp_path, data)
+
+    def test_fight_turn_scripts_the_opponent_even_when_the_player_picks_first(
+        self, tmp_path: Path
+    ) -> None:
+        """Both sides act in a fight turn: the actions array scripts the
+        opponent's picks regardless of whose turn (active_side) it is."""
+        data = _fight_base()
+        data["turns"][0]["actions"] = [
+            {"attacker": "termagants_1", "weapon": "claws_and_teeth", "target": "marines_1"}
+        ]
+        scenario = _load(tmp_path, data)
+        action = scenario.turns[0].actions[0]
+        assert action.attacker_unit_id == "termagants_1"
+        assert action.weapon == "claws_and_teeth"
+
+    def test_fight_action_may_not_script_the_players_side(self, tmp_path: Path) -> None:
+        data = _fight_base()
+        data["turns"][0]["actions"] = [
+            {"attacker": "marines_1", "weapon": "close_combat_weapon", "target": "termagants_1"}
+        ]
+        with pytest.raises(ScenarioDataError, match="player picks their own fights"):
+            _load(tmp_path, data)
+
+    def test_heuristic_opponent_cannot_take_a_fight_turn_yet(self, tmp_path: Path) -> None:
+        data = _fight_base()
+        data["opponent_strategy"] = "heuristic"
+        with pytest.raises(ScenarioDataError, match="does not fight yet"):
+            _load(tmp_path, data)
+
+    def test_unknown_phase_is_still_rejected(self, tmp_path: Path) -> None:
+        data = _base()
+        data["turns"][0]["phase"] = "psychic"
+        with pytest.raises(ScenarioDataError, match="'psychic'"):
+            _load(tmp_path, data)

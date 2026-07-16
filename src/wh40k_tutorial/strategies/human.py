@@ -1,9 +1,10 @@
-"""HumanStrategy: the player picks each shot through Click prompts.
+"""HumanStrategy: the player picks each shot and each fight through Click prompts.
 
 The player IS the strategy — this class only translates battlefield snapshots
 into numbered menus and the player's picks into an ``Action``. It offers only
-legal choices (eligible shooters, ranged weapons, surviving targets), so the
-engine's own legality validation should never fire on a human decision. When
+legal choices (eligible shooters or fighters, weapons of the phase's type,
+and — in melee — only engaged targets), so the engine's own legality
+validation should never fire on a human decision. When
 a menu has exactly one option it is announced and auto-picked: scenario 01
 has one unit, one gun, and one target, and asking three one-option questions
 would teach nothing.
@@ -34,15 +35,35 @@ def _describe_weapon(weapon: Weapon) -> str:
 
 
 class HumanStrategy:
-    """Prompts the player for one shooting action per activation."""
+    """Prompts the player for one action per activation — a shot, or a fight."""
 
     def choose_action(self, state: GameState) -> Action:
+        if state.phase == "fight":
+            return self._choose_fight(state)
+        return self._choose_shot(state)
+
+    def _choose_shot(self, state: GameState) -> Action:
         shooter = _pick("unit to shoot with", state.eligible_shooters(), _describe_unit)
         weapon = _pick("weapon", shooter.ranged_weapons, _describe_weapon)
         target = _pick("target", state.surviving_enemies(), _describe_unit)
         return Action(
             kind="shoot",
             attacker_unit_id=shooter.unit_id,
+            weapon_key=weapon.name,
+            target_unit_id=target.unit_id,
+        )
+
+    def _choose_fight(self, state: GameState) -> Action:
+        fighter = _pick(
+            "unit to fight with",
+            state.eligible_fighters(state.active_side),
+            _describe_unit,
+        )
+        weapon = _pick("melee weapon", fighter.melee_weapons, _describe_weapon)
+        target = _pick("target", state.engaged_enemies(fighter), _describe_unit)
+        return Action(
+            kind="fight",
+            attacker_unit_id=fighter.unit_id,
             weapon_key=weapon.name,
             target_unit_id=target.unit_id,
         )

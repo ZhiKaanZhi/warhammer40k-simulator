@@ -3,7 +3,7 @@
 Two jobs, both pure formatting:
 
 - turn `UnitSnapshot`s into battlefield `UnitToken`s;
-- turn a `ShootingResult` into the plain, step-by-step account of one volley,
+- turn a `AttackResult` into the plain, step-by-step account of one volley,
   straight from the record's facts (ADR 0001).
 
 The volley account states *what* happened at each step and the numbers that
@@ -18,7 +18,7 @@ from collections.abc import Sequence
 
 from rich.layout import Layout
 
-from wh40k_tutorial.core.combat import HitStep, SaveStep, ShootingResult, WoundStep
+from wh40k_tutorial.core.combat import AttackResult, HitStep, SaveStep, WoundStep
 from wh40k_tutorial.core.dice import RollResult
 from wh40k_tutorial.strategies.base import UnitSnapshot
 from wh40k_tutorial.ui.shell import (
@@ -75,7 +75,7 @@ def render_live_shell(
     )
 
 
-def volley_report_lines(result: ShootingResult, *, turn: int) -> list[str]:
+def volley_report_lines(result: AttackResult, *, turn: int) -> list[str]:
     """One volley as plain step-by-step facts, read straight off the record.
 
     Header plus one line per step: five for a keywordless weapon, six when
@@ -87,9 +87,15 @@ def volley_report_lines(result: ShootingResult, *, turn: int) -> list[str]:
     save = result.save
     weapon = attack.weapon
 
-    lines = [
+    header = (
         f"Turn {turn} — {result.attacker.display_name} fires "
-        f"{weapon.display_name} at {result.defender.display_name}.",
+        f"{weapon.display_name} at {result.defender.display_name}."
+        if weapon.type == "ranged"
+        else f"Turn {turn} — {result.attacker.display_name} attacks "
+        f"{result.defender.display_name} with {weapon.display_name} in melee."
+    )
+    lines = [
+        header,
         f"ATTACKS: {attack.attacker_models} models x {attack.attacks_per_model} attacks "
         f"= {attack.total_attacks} dice",
         _hit_line(hit),
@@ -128,7 +134,7 @@ def _wound_line(wound: WoundStep) -> str:
     return line
 
 
-def _mortal_line(result: ShootingResult) -> str:
+def _mortal_line(result: AttackResult) -> str:
     mortal = result.mortal
     started_with = mortal.models_remaining + mortal.models_slain
     crits = result.wound.diverted_critical_wounds
@@ -181,7 +187,7 @@ def _save_line(save: SaveStep) -> str:
     )
 
 
-def _damage_line(result: ShootingResult) -> str:
+def _damage_line(result: AttackResult) -> str:
     damage = result.damage
     started_with = damage.models_remaining + damage.models_slain
     if damage.damage.is_variable and damage.rolls:

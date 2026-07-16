@@ -1,9 +1,10 @@
 """ScriptedStrategy: replays a fixed sequence of actions from the scenario file.
 
-Used for the non-player side in v1 tutorials. The scenario author writes the
-opponent's shots into the ``actions`` array of each turn entry (see the
-add-scenario skill); ``scripted_actions_for`` flattens that side's script and
-the strategy replays it one action per activation, in order.
+Used for the non-player side in the teaching-ladder tutorials. The scenario
+author writes the opponent's shots — and, in fight turns, its fights — into
+the ``actions`` array of each turn entry (see the add-scenario skill);
+``scripted_actions_for`` flattens that side's script and the strategy replays
+it one action per activation, in order.
 
 Running out of script is an authoring bug, not a fallback situation — the
 strategy raises rather than inventing a move, so a scenario that under-scripts
@@ -40,15 +41,25 @@ class ScriptedStrategy:
 
 
 def scripted_actions_for(scenario: Scenario, side: str) -> tuple[Action, ...]:
-    """Flatten one side's scripted actions across the scenario's turns, in play order."""
+    """Flatten one side's scripted actions across the scenario's turns, in play order.
+
+    A shooting turn's actions belong to its active side. A fight turn is
+    two-sided, so a fight action belongs to whichever side its acting unit
+    is on — the loader guarantees that is never the player's side.
+    """
+    side_units = {u.unit_id for u in scenario.side(side).units}
     return tuple(
         Action(
-            kind="shoot",
+            kind="fight" if turn.phase == "fight" else "shoot",
             attacker_unit_id=a.attacker_unit_id,
             weapon_key=a.weapon,
             target_unit_id=a.target_unit_id,
         )
         for turn in scenario.turns
-        if turn.active_side == side
         for a in turn.actions
+        if (
+            a.attacker_unit_id in side_units
+            if turn.phase == "fight"
+            else turn.active_side == side
+        )
     )

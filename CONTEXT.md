@@ -39,3 +39,20 @@ _Avoid_: armour mod, save modifier.
 **Invulnerable save**:
 An alternative saving throw that ignores AP. The defender uses whichever is better — the AP-modified armour save or the invulnerable save.
 _Avoid_: invuln (informal only), ward save.
+
+**Engagement range / engaged**:
+The zone in which melee happens: in the full game, within 2" horizontally (5" vertically) of a model. While opposing models sit inside each other's engagement range, they — and their units — are engaged. On our pre-positioned grid, adjacency (one square of separation or less, diagonals included) is the convention for engagement (`core.scenario.in_engagement_range`, the single definition) until movement fixes a squares-to-inches scale.
+_Avoid_: melee range, base contact (a different, tighter thing).
+
+**Fight phase**:
+The phase in which BOTH players act: every engaged unit must fight exactly once, players alternate picking which of their units fights next — the player whose turn it is picks first (absent Fights First units) — and casualties are applied fight by fight, so a unit picked later swings with only its surviving models.
+_Avoid_: melee phase, combat phase.
+
+**Selected to fight**:
+The moment a unit is picked in the fight-phase alternation and resolves all its melee attacks. Each unit is selected at most once per fight phase; fighting is mandatory for every unit that can.
+_Avoid_: activates in melee (we reserve "activation" for the generic once-per-phase act).
+
+**Fights First**:
+A unit-level ability (every model must have it) that puts the unit in the fight phase's priority selection step, before ordinary combats. Charging is what normally grants the effect. Named here for the glossary; deferred with charges — no unit in the project's data carries it.
+_Avoid_: strikes first, initiative (an older edition's concept).
+

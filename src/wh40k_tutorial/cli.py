@@ -11,7 +11,7 @@ Commands:
 `play` runs the scenario runner (phase 5) with the narrator (phase 6): the
 player's side is driven by `HumanStrategy` prompts, the opponent by
 `ScriptedStrategy`, and every volley is reported step by step straight from
-the `ShootingResult` record — each fact line followed by the rule that drove
+the `AttackResult` record — each fact line followed by the rule that drove
 it. After a volley the player can ask for the deeper rule behind any step,
 and the rules panel of the final battlefield view carries the explanations
 for the last volley.
@@ -153,7 +153,13 @@ def play(scenario_id: str, seed: int | None) -> None:
     last_narrations: list[StepNarration] = []
 
     def announce_turn(number: int, turn: ScenarioTurn) -> None:
-        click.echo(f"\n— Turn {number}: {turn.phase} phase, the {turn.active_side} acts —")
+        if turn.phase == "fight":
+            click.echo(
+                f"\n— Turn {number}: fight phase — both sides fight; "
+                f"the {turn.active_side} picks first —"
+            )
+        else:
+            click.echo(f"\n— Turn {number}: {turn.phase} phase, the {turn.active_side} acts —")
         if turn.narrate_before:
             click.echo(turn.narrate_before + "\n")
 

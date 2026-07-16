@@ -209,6 +209,31 @@ def shootable_weapons(
     return tuple(w for w in datasheet.weapons if w.type == "ranged")
 
 
+def melee_weapons(
+    datasheet: UnitDatasheet, loadout_override: tuple[str, ...] = ()
+) -> tuple[Weapon, ...]:
+    """The melee weapons a unit may fight with, honoring an optional loadout override.
+
+    The Fight-phase mirror of `shootable_weapons`, and like it the single
+    definition of "what can this unit swing": scenario loader, engine
+    validation, and ``UnitSnapshot.melee_weapons`` all defer here.
+
+    Selection: the melee entries of the scenario's ``loadout_override`` (or
+    the datasheet's ``default_loadout``) when it names any; otherwise every
+    melee weapon on the sheet. The fallback is the common case on purpose —
+    loadouts swap *guns*, but a model always keeps its close-combat weapon
+    (the 11th-edition rule is that each model picks one melee weapon it has
+    when fighting, 04.01), so an override that only names rifles must not
+    disarm the unit in melee.
+    """
+    by_key = {w.name: w for w in datasheet.weapons}
+    selected = loadout_override or datasheet.default_loadout
+    chosen = tuple(by_key[key] for key in selected if by_key[key].type == "melee")
+    if chosen:
+        return chosen
+    return tuple(w for w in datasheet.weapons if w.type == "melee")
+
+
 class FactionDataError(ValueError):
     """A faction JSON file doesn't match the schema in the add-unit skill."""
 

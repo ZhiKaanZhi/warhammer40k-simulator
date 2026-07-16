@@ -21,8 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from wh40k_tutorial.core.models import UnitDatasheet, Weapon, shootable_weapons
-from wh40k_tutorial.core.scenario import opposing_side
+from wh40k_tutorial.core.models import UnitDatasheet, Weapon, melee_weapons, shootable_weapons
+from wh40k_tutorial.core.scenario import in_engagement_range, opposing_side
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,7 @@ class UnitSnapshot:
     models: int              # models still standing
     wounds_on_lead: int      # wounds left on the front model; 0 once destroyed
     has_shot: bool = False   # already activated in the current shooting phase
+    has_fought: bool = False  # already selected to fight in the current fight phase
     # The scenario's loadout override for this unit; empty means "use the
     # datasheet's default_loadout". Set by the engine from ScenarioUnit.loadout.
     loadout: tuple[str, ...] = ()
@@ -57,6 +58,11 @@ class UnitSnapshot:
         (or every ranged weapon on a sheet that declares no loadout at all).
         """
         return shootable_weapons(self.datasheet, self.loadout)
+
+    @property
+    def melee_weapons(self) -> tuple[Weapon, ...]:
+        """The weapons this unit may fight with (see `core.models.melee_weapons`)."""
+        return melee_weapons(self.datasheet, self.loadout)
 
 
 @dataclass(frozen=True)
@@ -96,19 +102,49 @@ class GameState:
             u for u in self.units_on(opposing_side(self.active_side)) if not u.destroyed
         )
 
+    def engaged_enemies(self, unit: UnitSnapshot) -> tuple[UnitSnapshot, ...]:
+        """Surviving enemy units within engagement range of ``unit``.
+
+        These are the only legal melee targets for it (04.02: a melee weapon
+        must target a unit engaged with its bearer).
+        """
+        return tuple(
+            u
+            for u in self.units_on(opposing_side(unit.side))
+            if not u.destroyed and in_engagement_range(unit.position, u.position)
+        )
+
+    def eligible_fighters(self, side: str) -> tuple[UnitSnapshot, ...]:
+        """``side``'s units that can still be selected to fight this phase.
+
+        Alive, engaged with at least one surviving enemy, armed with a melee
+        weapon, and not yet selected to fight. The single definition of fight
+        eligibility — the engine's alternation loop and the strategies' menus
+        rely on it agreeing with itself. (The rulebook also lets a unit whose
+        combat ended mid-phase fight via an *overrun* move; without movement
+        there is nothing for such a unit to reach, so it is not offered.)
+        """
+        return tuple(
+            u
+            for u in self.units_on(side)
+            if not u.destroyed
+            and not u.has_fought
+            and u.melee_weapons
+            and self.engaged_enemies(u)
+        )
+
 
 @dataclass(frozen=True)
 class Action:
     """An action a strategy can take.
 
-    v1 only models the shooting phase, so for now an Action is "this attacker
-    shoots that target with that weapon". Future phases (movement, charge,
-    fight) will add Action subclasses or a discriminated union.
-
-    TODO: replace with a proper discriminated union once we have more actions.
+    Two kinds exist: "shoot" (a shooting-phase volley) and "fight" (a
+    fight-phase melee activation). Both are "this attacker attacks that
+    target with that weapon", so one shape serves — a discriminated union
+    earns its keep only once an action needs different fields (movement).
     """
 
-    kind: str  # "shoot" for v1
+    kind: str  # "shoot" or "fight"
     attacker_unit_id: str
     weapon_key: str
     target_unit_id: str

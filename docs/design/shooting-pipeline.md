@@ -87,7 +87,8 @@ resolve_shooting(
 
 Datasheets are passed whole (for narration + future unit-level hooks) even though v1 mechanics read only
 `weapon`, the profile stats, and the counts. A shared internal `_resolve_attack_sequence` backs both this
-and a future `resolve_melee` — melee adds only engine-level fight ordering, not a new pipeline shape.
+and `resolve_melee` — the prediction held: melee shipped as engine-level fight ordering plus a second
+thin entry point, not a new pipeline shape (see `fight-phase.md`, ADR 0006).
 
 ## Edge cases
 

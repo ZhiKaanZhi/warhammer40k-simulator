@@ -168,6 +168,25 @@ class TestAbilityScenarioEndToEnd:
         assert "Each critical wound strikes just one model." in out
         assert "a scalpel, not an avalanche" in out   # the outro's core lesson
 
+    def test_first_blood_shows_the_fight_phase_and_the_reduced_return_swing(self) -> None:
+        result = CliRunner().invoke(
+            main, ["play", "08_first_blood", "--seed", "20"], input="\n\n"
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+        # The fight-turn banner: both sides act, the player picks first.
+        assert "both sides fight; the attacker picks first" in out
+        # Melee wording end to end: menu, header, WS narration.
+        assert "Unit to fight with: Boyz" in out
+        assert "with Choppa in melee" in out
+        assert "Weapon Skill" in out
+        # The lesson in the dice: 10 Boyz swing 30, the survivors answer with 9.
+        assert "10 models x 3 attacks = 30 dice" in out
+        assert "3 models x 3 attacks = 9 dice" in out
+        assert "2 models slain; 3 of 5 remain" in out
+        # The outro's core sentence.
+        assert "a dead model makes no attacks" in out
+
     def test_return_fire_ai_targets_the_softer_unit(self) -> None:
         result = CliRunner().invoke(
             main,

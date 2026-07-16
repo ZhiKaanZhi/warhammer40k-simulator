@@ -6,7 +6,7 @@ This is a learning tool, not a battle simulator. The goal is for a complete begi
 
 ## Status
 
-**v1 complete (build phases 1–8).** Engine and content are both in: dice primitives, the validated loaders, the full shooting pipeline with the keyword-ability framework (Sustained Hits, Lethal Hits, Devastating Wounds with true mortal-wound resolution), the Rich interface, the scenario runner, and the narrator — plus six verified factions and a seven-scenario teaching ladder. `wh40k play` walks a complete beginner from the bare combat sequence (First Shots) through the wound chart (Tougher Targets) and armour/invulnerable saves (Piercing Armour), the three critical-hit abilities (Lethal Hits, Sustained Hits, Devastating Wounds), and a two-sided battle against the AI (Return Fire) — with every roll explained and deeper rules on demand. **The v2 headliner is in:** a heuristic AI opponent that picks each shot by expected damage, and `06_return_fire` — the first two-sided scenario, where the T'au shoot back and the player watches target priority happen to them. Further scenarios are pure data work. See `CLAUDE.md` for the architecture and build order.
+**v1 complete (build phases 1–8), and v2 is under way.** Engine and content are both in: dice primitives, the validated loaders, the full shooting pipeline with the keyword-ability framework (Sustained Hits, Lethal Hits, Devastating Wounds with true mortal-wound resolution), the Rich interface, the scenario runner, and the narrator — plus six verified factions and an eight-scenario teaching ladder. `wh40k play` walks a complete beginner from the bare combat sequence (First Shots) through the wound chart (Tougher Targets) and armour/invulnerable saves (Piercing Armour), the three critical-hit abilities (Lethal Hits, Sustained Hits, Devastating Wounds), a two-sided battle against the AI (Return Fire), and now **melee** (First Blood) — with every roll explained and deeper rules on demand. **Two v2 headliners are in:** a heuristic AI opponent that picks each shot by expected damage (`06_return_fire`, where the T'au shoot back and the player watches target priority happen to them), and the **fight phase** (`08_first_blood`, where both sides fight, the player picks first, and the Orks learn that a dead Marine makes no attacks). Further scenarios are pure data work. See `CLAUDE.md` for the architecture and build order.
 
 ## Play it on your machine (nothing assumed)
 
@@ -105,7 +105,7 @@ wh40k --help                 # CLI help
 ## What's in the box
 
 - **Six factions, verified against the current rules:** Space Marines, Tyranids, Necrons, Orks, T'au Empire, Adeptus Mechanicus — each picked to demonstrate a different playstyle, every profile checked against the 10th-codex baseline plus the official 11th-edition Faction Pack errata.
-- **Scenario-driven tutorials.** Each scenario teaches one concept (hit/wound/save/damage, AP, target priority, etc.).
+- **Scenario-driven tutorials.** Each scenario teaches one concept (hit/wound/save/damage, AP, target priority, melee strike order, etc.).
 - **Rich-based TUI.** Battlefield grid, action log, contextual rules panel — all in your terminal.
 - **Extensible by design.** Scripted opponents, the human player, and the heuristic AI all sit behind one strategy interface; scenarios choose their opponent with a single `opponent_strategy` field.
 

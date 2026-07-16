@@ -17,9 +17,10 @@ import random
 import pytest
 
 from wh40k_tutorial.core.combat import (
-    ShootingResult,
+    AttackResult,
     _allocate_damage,
     _resolve_mortal_wounds,
+    resolve_melee,
     resolve_shooting,
 )
 from wh40k_tutorial.core.models import (
@@ -340,7 +341,7 @@ class TestKeywordAbilitiesInThePipeline:
         defender: UnitDatasheet | None = None,
         *,
         models: int = 10,
-    ) -> ShootingResult:
+    ) -> AttackResult:
         defender = defender or _sheet("target", toughness=3, save=5)
         return resolve_shooting(
             _sheet("shooter", weapon=weapon),
@@ -562,3 +563,54 @@ class TestVariableDamage:
             rolls.extend(result.mortal.rolls)
         mean = sum(rolls) / len(rolls)
         assert 1.95 < mean < 2.05, f"mean D3 damage {mean:.3f}, expected ~2.0"
+
+
+# ---------------------------------------------------------------------------
+# resolve_melee: the Fight-phase entry point over the shared sequence
+# ---------------------------------------------------------------------------
+
+
+class TestResolveMelee:
+    def test_rejects_a_ranged_weapon(self) -> None:
+        attacker = _sheet("swingers", weapon=_weapon(type="melee", name="fists", range=0))
+        defender = _sheet("targets")
+        with pytest.raises(ValueError, match="needs a melee weapon"):
+            resolve_melee(attacker, 5, _weapon(), defender, 1, 5)
+
+    def test_resolve_shooting_still_rejects_a_melee_weapon(self) -> None:
+        attacker = _sheet("swingers", weapon=_weapon(type="melee", name="fists", range=0))
+        defender = _sheet("targets")
+        with pytest.raises(ValueError, match="needs a ranged weapon"):
+            resolve_shooting(attacker, 5, attacker.weapons[0], defender, 1, 5)
+
+    def test_melee_runs_the_exact_same_sequence_as_shooting(self) -> None:
+        """Twin weapons — identical stats, one ranged, one melee — must produce
+        identical records from the same seed: the pipeline is genuinely shared,
+        the entry points differ only in the weapon type they accept."""
+        gun = _weapon(name="twin", display_name="Twin")
+        blade = _weapon(name="twin", display_name="Twin", type="melee", range=0)
+        shooter = _sheet("unit_a", weapon=gun)
+        swinger = _sheet("unit_b", weapon=blade)
+        defender = _sheet("targets", toughness=3, save=5, wounds=2)
+
+        shot = resolve_shooting(shooter, 5, gun, defender, 2, 10, rng=random.Random(99))
+        swung = resolve_melee(swinger, 5, blade, defender, 2, 10, rng=random.Random(99))
+
+        assert shot.hit.roll.raw_rolls == swung.hit.roll.raw_rolls
+        assert shot.wound.roll.raw_rolls == swung.wound.roll.raw_rolls
+        assert shot.save.roll.raw_rolls == swung.save.roll.raw_rolls
+        assert shot.damage == swung.damage
+        assert shot.mortal == swung.mortal
+
+    @pytest.mark.parametrize(
+        ("models", "def_models", "wounds_left"),
+        [(-1, 5, 1), (5, 0, 1), (5, 5, 0), (5, 5, 2)],
+    )
+    def test_guards_mirror_resolve_shooting(
+        self, models: int, def_models: int, wounds_left: int
+    ) -> None:
+        blade = _weapon(type="melee", name="blade", range=0)
+        attacker = _sheet("swingers", weapon=blade)
+        defender = _sheet("targets")  # 1 wound per model
+        with pytest.raises(ValueError):
+            resolve_melee(attacker, models, blade, defender, wounds_left, def_models)

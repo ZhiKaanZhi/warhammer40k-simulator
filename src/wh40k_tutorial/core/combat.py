@@ -1,12 +1,13 @@
 """Combat resolution pipeline.
 
-The shooting (and later, melee) sequence is a pipeline:
+The attack sequence — shared by shooting and melee — is a pipeline:
 
     attacks -> hits -> wounds -> saves -> damage -> mortal wounds
 
 Each step is a pure function that consumes the previous step's record and
-returns its own frozen record. `resolve_shooting` strings them together and
-returns a `ShootingResult`: a structured, step-by-step account carrying the
+returns its own frozen record. `resolve_shooting` and `resolve_melee` are
+thin entry points over the shared `_resolve_attack_sequence`; both return an
+`AttackResult`: a structured, step-by-step account carrying the
 raw dice faces and the facts that drove every target number, so the narrator
 can explain each roll without re-deriving any rules (ADR 0001).
 
@@ -20,9 +21,11 @@ Devastating Wounds' per-critical mortal packets after normal damage (each
 capped to one model, no spillover — rule 24.10); a weapon without it records
 zeros and mirrors the damage step's final state.
 
-TODO (later phases): ``resolve_melee``, which will reuse
-``_resolve_attack_sequence`` plus engine-level fight ordering — a new
-caller, not a new pipeline shape.
+The two entry points differ only in the weapon type they accept: the hit
+roll reads the weapon's ``skill`` either way (BS when shooting, WS in
+melee), and every later step is identical. Fight-phase *ordering* — who
+swings first, alternation, casualty timing — is engine work (ADR 0006),
+not pipeline work.
 """
 
 from __future__ import annotations
@@ -153,8 +156,8 @@ class MortalWoundsStep:
 
 
 @dataclass(frozen=True)
-class ShootingResult:
-    """One weapon's worth of shooting, as a narratable record of facts."""
+class AttackResult:
+    """One weapon's worth of attacks — shooting or melee — as a narratable record of facts."""
 
     attacker: UnitDatasheet
     defender: UnitDatasheet
@@ -184,7 +187,7 @@ def resolve_shooting(
     defender_wounds_remaining: int,
     defender_model_count: int,
     rng: random.Random | None = None,
-) -> ShootingResult:
+) -> AttackResult:
     """Resolve one ranged weapon profile fired by N identical models at one target unit.
 
     Mixed-weapon units are several calls made by the engine, so every die in
@@ -218,6 +221,44 @@ def resolve_shooting(
     )
 
 
+def resolve_melee(
+    attacker: UnitDatasheet,
+    attacker_model_count: int,
+    weapon: Weapon,
+    defender: UnitDatasheet,
+    defender_wounds_remaining: int,
+    defender_model_count: int,
+    rng: random.Random | None = None,
+) -> AttackResult:
+    """Resolve one melee weapon profile swung by N identical models at one target unit.
+
+    The mirror of `resolve_shooting` for the Fight phase: same shared attack
+    sequence, same record shape — the hit roll simply reads the weapon's WS.
+    The engine owns everything melee-specific *around* this call (who fights
+    when, engagement checks, casualty timing between fights; ADR 0006).
+    """
+    if weapon.type != "melee":
+        raise ValueError(f"resolve_melee needs a melee weapon, got {weapon.name!r} (ranged)")
+    if attacker_model_count < 0:
+        raise ValueError(f"attacker_model_count must be >= 0, got {attacker_model_count}")
+    if defender_model_count < 1:
+        raise ValueError(f"defender_model_count must be >= 1, got {defender_model_count}")
+    if not 1 <= defender_wounds_remaining <= defender.profile.wounds:
+        raise ValueError(
+            f"defender_wounds_remaining must be in 1..{defender.profile.wounds} "
+            f"(the lead model's wounds), got {defender_wounds_remaining}"
+        )
+    return _resolve_attack_sequence(
+        attacker,
+        attacker_model_count,
+        weapon,
+        defender,
+        defender_wounds_remaining,
+        defender_model_count,
+        rng or random.Random(),
+    )
+
+
 def _resolve_attack_sequence(
     attacker: UnitDatasheet,
     attacker_model_count: int,
@@ -226,7 +267,7 @@ def _resolve_attack_sequence(
     defender_wounds_remaining: int,
     defender_model_count: int,
     rng: random.Random,
-) -> ShootingResult:
+) -> AttackResult:
     """The shared attacks -> hits -> wounds -> saves -> damage sequence.
 
     ``resolve_shooting`` is a thin wrapper over this; a future
@@ -257,7 +298,7 @@ def _resolve_attack_sequence(
         model_count=damage.models_remaining,
         rng=rng,
     )
-    return ShootingResult(
+    return AttackResult(
         attacker=attacker,
         defender=defender,
         attack=attack,

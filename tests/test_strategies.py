@@ -69,6 +69,7 @@ def _snap(
     models: int | None = None,
     position: tuple[int, int] = (0, 0),
     has_shot: bool = False,
+    has_fought: bool = False,
     loadout: tuple[str, ...] = (),
 ) -> UnitSnapshot:
     resolved_models = sheet.default_model_count if models is None else models
@@ -80,12 +81,15 @@ def _snap(
         models=resolved_models,
         wounds_on_lead=sheet.profile.wounds if resolved_models > 0 else 0,
         has_shot=has_shot,
+        has_fought=has_fought,
         loadout=loadout,
     )
 
 
-def _state(*units: UnitSnapshot, active_side: str = "attacker") -> GameState:
-    return GameState(turn=1, phase="shooting", active_side=active_side, units=units)
+def _state(
+    *units: UnitSnapshot, active_side: str = "attacker", phase: str = "shooting"
+) -> GameState:
+    return GameState(turn=1, phase=phase, active_side=active_side, units=units)
 
 
 # ---------------------------------------------------------------------------
@@ -239,3 +243,105 @@ class TestHumanStrategy:
         action, output = _choose(state, input_text="9\n1\n")
         assert action.attacker_unit_id == "a1"
         assert output.count("Your choice") >= 2  # rejected, asked again
+
+
+# ---------------------------------------------------------------------------
+# Fight-phase eligibility and menus
+# ---------------------------------------------------------------------------
+
+
+class TestFightEligibility:
+    def test_eligible_fighters_require_engagement_life_arms_and_a_free_turn(self) -> None:
+        state = _state(
+            _snap("engaged", "attacker", MARINES, position=(4, 4)),
+            _snap("fought", "attacker", MARINES, position=(4, 5), has_fought=True),
+            _snap("far", "attacker", MARINES, position=(0, 0)),
+            _snap("dead", "attacker", MARINES, position=(4, 3), models=0),
+            _snap("g1", "defender", GANTS, position=(5, 4)),
+            phase="fight",
+        )
+        assert [u.unit_id for u in state.eligible_fighters("attacker")] == ["engaged"]
+        # ...and eligibility is per side, not per active_side:
+        assert [u.unit_id for u in state.eligible_fighters("defender")] == ["g1"]
+
+    def test_engaged_enemies_filters_by_adjacency_and_life(self) -> None:
+        state = _state(
+            _snap("m1", "attacker", MARINES, position=(4, 4)),
+            _snap("near", "defender", GANTS, position=(5, 5)),
+            _snap("far", "defender", GANTS, position=(8, 4)),
+            _snap("dead", "defender", GANTS, position=(4, 5), models=0),
+            phase="fight",
+        )
+        m1 = state.unit("m1")
+        assert [u.unit_id for u in state.engaged_enemies(m1)] == ["near"]
+
+    def test_melee_weapons_survive_a_guns_only_loadout_override(self) -> None:
+        """A scenario override that swaps rifles must not disarm the unit in
+        melee — models always keep their close-combat weapon (04.01)."""
+        snap = _snap("m1", "attacker", MARINES, loadout=("bolt_rifle",))
+        assert [w.name for w in snap.melee_weapons] == ["close_combat_weapon"]
+
+    def test_melee_weapons_honor_a_melee_entry_in_the_override(self) -> None:
+        blade, claw = _weapon("blade", type_="melee"), _weapon("claw", type_="melee")
+        sheet = _sheet("brawlers", blade, claw, loadout=("blade", "claw"))
+        snap = _snap("b1", "attacker", sheet, loadout=("claw",))
+        assert [w.name for w in snap.melee_weapons] == ["claw"]
+
+
+class TestScriptedFightActions:
+    def test_fight_turn_actions_carry_the_fight_kind_and_their_own_side(self) -> None:
+        """scripted_actions_for attributes a fight-turn action by its acting
+        unit's side, because both sides act in a fight turn."""
+        scenario = Scenario(
+            scenario_id="s",
+            title="t",
+            teaches="x.",
+            intro="i",
+            player_side="attacker",
+            attacker=ScenarioSide(
+                "attacker", "space_marines", (ScenarioUnit("m1", MARINES, (4, 4), 5),)
+            ),
+            defender=ScenarioSide(
+                "defender", "tyranids", (ScenarioUnit("g1", GANTS, (5, 4), 10),)
+            ),
+            turns=(
+                ScenarioTurn(
+                    "fight",
+                    "attacker",
+                    actions=(SA("g1", "claws_and_teeth", "m1"),),
+                ),
+            ),
+            outro="o",
+        )
+        assert scripted_actions_for(scenario, "defender") == (
+            Action("fight", "g1", "claws_and_teeth", "m1"),
+        )
+        assert scripted_actions_for(scenario, "attacker") == ()
+
+
+class TestHumanStrategyFights:
+    def test_single_option_fight_is_announced_not_prompted(self) -> None:
+        state = _state(
+            _snap("m1", "attacker", MARINES, position=(4, 4)),
+            _snap("g1", "defender", GANTS, position=(5, 4)),
+            phase="fight",
+        )
+        action, output = _choose(state, input_text="")
+        assert action == Action("fight", "m1", "close_combat_weapon", "g1")
+        assert "Unit to fight with: Intercessor Squad" in output
+        assert "Melee weapon: Close Combat Weapon" in output
+        assert "Target: Termagants" in output
+        assert "Your choice" not in output
+
+    def test_only_engaged_enemies_are_offered_as_targets(self) -> None:
+        state = _state(
+            _snap("m1", "attacker", MARINES, position=(4, 4)),
+            _snap("near_a", "defender", GANTS, position=(5, 4)),
+            _snap("near_b", "defender", GANTS, position=(5, 5)),
+            _snap("far", "defender", GANTS, position=(9, 4)),
+            phase="fight",
+        )
+        action, output = _choose(state, input_text="2\n")
+        assert action == Action("fight", "m1", "close_combat_weapon", "near_b")
+        assert "Pick a target:" in output
+        assert output.count("Termagants") == 2  # the two engaged units, not the far one

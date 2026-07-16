@@ -1,6 +1,6 @@
 """The narrator: the rule behind every roll, in plain English (build phase 6).
 
-`narrate_volley` turns one `ShootingResult` into five `StepNarration`s — one
+`narrate_volley` turns one `AttackResult` into five `StepNarration`s — one
 per pipeline step, in pipeline order. Each carries:
 
 - ``inline``    — one or two sentences naming the rule that drove the step,
@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from wh40k_tutorial.core.combat import ShootingResult
+from wh40k_tutorial.core.combat import AttackResult
 
 STEP_ORDER = ("attacks", "hit", "wound", "save", "damage")
 
@@ -36,7 +36,7 @@ class StepNarration:
     expansion: str
 
 
-def narrate_volley(result: ShootingResult) -> tuple[StepNarration, ...]:
+def narrate_volley(result: AttackResult) -> tuple[StepNarration, ...]:
     """Explain each step of one volley, in pipeline order.
 
     Five entries for a keywordless weapon; a sixth ("mortal") appears exactly
@@ -44,7 +44,7 @@ def narrate_volley(result: ShootingResult) -> tuple[StepNarration, ...]:
     the report gains its MORTAL line, keeping the CLI interleave aligned.
     """
     narrations = [
-        StepNarration("attacks", _attacks_inline(result), _ATTACKS_EXPANSION),
+        StepNarration("attacks", _attacks_inline(result), _attacks_expansion(result)),
         StepNarration("hit", _hit_inline(result), _HIT_EXPANSION),
         StepNarration("wound", _wound_inline(result), _WOUND_EXPANSION),
         StepNarration("save", _save_inline(result), _SAVE_EXPANSION),
@@ -71,12 +71,13 @@ def _plural(count: int, singular: str, plural: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _attacks_inline(result: ShootingResult) -> str:
+def _attacks_inline(result: AttackResult) -> str:
     a = result.attack
     dice = _plural(a.total_attacks, "die", "dice")
+    verb = "fires" if a.weapon.type == "ranged" else "fights"
     return (
         f"{a.weapon.display_name}'s Attacks value is {a.attacks_per_model} and every "
-        f"model in the unit fires, so the pool is {a.attacker_models} x "
+        f"model in the unit {verb}, so the pool is {a.attacker_models} x "
         f"{a.attacks_per_model} = {a.total_attacks} {dice}."
     )
 
@@ -84,10 +85,22 @@ def _attacks_inline(result: ShootingResult) -> str:
 _ATTACKS_EXPANSION = (
     "Attacks (the A on a weapon profile) is how many dice one model contributes "
     "when it uses that weapon. A unit's pool is simply models x Attacks, because "
-    "every model in the unit shoots. Some weapons in the full game roll for their "
+    "every model in the unit attacks. Some weapons in the full game roll for their "
     "Attacks value (\"D6 attacks\"); everything in this tutorial uses fixed numbers, "
     "so the pool is known before any dice hit the table."
 )
+
+_ATTACKS_MELEE_NOTE = (
+    " One melee nuance: in the full game only models within engagement range "
+    "(2 inches) get to swing — these scenarios pre-position the whole unit in "
+    "reach, so every model fights."
+)
+
+
+def _attacks_expansion(result: AttackResult) -> str:
+    if result.attack.weapon.type == "melee":
+        return _ATTACKS_EXPANSION + _ATTACKS_MELEE_NOTE
+    return _ATTACKS_EXPANSION
 
 
 # ---------------------------------------------------------------------------
@@ -95,11 +108,13 @@ _ATTACKS_EXPANSION = (
 # ---------------------------------------------------------------------------
 
 
-def _hit_inline(result: ShootingResult) -> str:
+def _hit_inline(result: AttackResult) -> str:
     hit = result.hit
-    skill_name = "Ballistic Skill" if result.attack.weapon.type == "ranged" else "Weapon Skill"
+    ranged = result.attack.weapon.type == "ranged"
+    skill_name = "Ballistic Skill" if ranged else "Weapon Skill"
+    attackers = "firers" if ranged else "attackers"
     line = (
-        f"To hit, each die must roll {hit.roll.target}+ — the firers' "
+        f"To hit, each die must roll {hit.roll.target}+ — the {attackers}' "
         f"{skill_name}, printed on the weapon profile. A natural 1 always misses "
         f"and a natural 6 always hits."
     )
@@ -139,7 +154,7 @@ _WOUND_RELATIONS = {
 }
 
 
-def _wound_inline(result: ShootingResult) -> str:
+def _wound_inline(result: AttackResult) -> str:
     w = result.wound
     relation = _WOUND_RELATIONS[w.roll.target]
     line = (
@@ -179,7 +194,7 @@ _WOUND_EXPANSION = (
 # ---------------------------------------------------------------------------
 
 
-def _save_inline(result: ShootingResult) -> str:
+def _save_inline(result: AttackResult) -> str:
     s = result.save
     armour_after_ap = s.armor_save + s.ap
     if not s.save_possible:
@@ -233,7 +248,7 @@ _SAVE_EXPANSION = (
 # ---------------------------------------------------------------------------
 
 
-def _damage_inline(result: ShootingResult) -> str:
+def _damage_inline(result: AttackResult) -> str:
     d = result.damage
     dmg = d.damage
     wounds_per_model = result.defender.profile.wounds
@@ -284,7 +299,7 @@ def _damage_inline(result: ShootingResult) -> str:
     return line
 
 
-def _mortal_inline(result: ShootingResult) -> str:
+def _mortal_inline(result: AttackResult) -> str:
     m = result.mortal
     weapon = result.attack.weapon
     crits = result.wound.diverted_critical_wounds

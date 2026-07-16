@@ -1,6 +1,6 @@
 """Tests for the narrator (build phase 6).
 
-The narrator is a pure formatter over `ShootingResult` (ADR 0001), so every
+The narrator is a pure formatter over `AttackResult` (ADR 0001), so every
 test builds a real record via `resolve_shooting` with a seeded RNG — never a
 hand-faked record — and asserts on the words. Branch coverage mirrors the
 narrator's own branches: the five wound-chart relations, the four save
@@ -16,7 +16,7 @@ import random
 
 import pytest
 
-from wh40k_tutorial.core.combat import ShootingResult, resolve_shooting
+from wh40k_tutorial.core.combat import AttackResult, resolve_shooting
 from wh40k_tutorial.core.models import Profile, UnitDatasheet, Weapon, load_faction_by_name
 from wh40k_tutorial.narrator import STEP_ORDER, narrate_volley
 from wh40k_tutorial.ui.live import volley_report_lines
@@ -86,7 +86,7 @@ def _volley(
     models: int = 5,
     defender_models: int = 10,
     seed: int = SEED,
-) -> ShootingResult:
+) -> AttackResult:
     return resolve_shooting(
         _attacker(weapon),
         models,
@@ -98,7 +98,7 @@ def _volley(
     )
 
 
-def _inline(result: ShootingResult, step: str) -> str:
+def _inline(result: AttackResult, step: str) -> str:
     return next(n.inline for n in narrate_volley(result) if n.step == step)
 
 
@@ -130,33 +130,33 @@ class TestScenarioOneWords:
     """The exact teaching lines for the volley the first scenario shows."""
 
     @pytest.fixture()
-    def result(self) -> ShootingResult:
+    def result(self) -> AttackResult:
         return resolve_shooting(MARINES, 5, BOLT_RIFLE, GANTS, 1, 10, rng=random.Random(SEED))
 
-    def test_attacks_line_shows_the_multiplication(self, result: ShootingResult) -> None:
+    def test_attacks_line_shows_the_multiplication(self, result: AttackResult) -> None:
         line = _inline(result, "attacks")
         assert "Bolt Rifle" in line
         assert "5 x 2 = 10 dice" in line
 
-    def test_hit_line_names_ballistic_skill_and_the_naturals(self, result: ShootingResult) -> None:
+    def test_hit_line_names_ballistic_skill_and_the_naturals(self, result: AttackResult) -> None:
         line = _inline(result, "hit")
         assert "roll 3+" in line
         assert "Ballistic Skill" in line
         assert "natural 1 always misses" in line
         assert "natural 6 always hits" in line
 
-    def test_wound_line_reads_the_chart(self, result: ShootingResult) -> None:
+    def test_wound_line_reads_the_chart(self, result: AttackResult) -> None:
         line = _inline(result, "wound")
         assert "Strength 4 beats the target's Toughness 3" in line
         assert "3+ to wound" in line
 
-    def test_save_line_explains_ap(self, result: ShootingResult) -> None:
+    def test_save_line_explains_ap(self, result: AttackResult) -> None:
         line = _inline(result, "save")
         assert "armour save is 5+" in line
         assert "AP -1" in line
         assert "worsens it to 6+" in line
 
-    def test_damage_line_explains_one_wound_models(self, result: ShootingResult) -> None:
+    def test_damage_line_explains_one_wound_models(self, result: AttackResult) -> None:
         line = _inline(result, "damage")
         assert "1 here" in line
         assert "single wound apiece" in line
@@ -277,7 +277,7 @@ class TestAbilityNarration:
     """Phase 7: the narrator explains abilities exactly when the record shows
     them, and its entry count always matches the report's fact lines."""
 
-    def _crit_volley(self, keywords: tuple[str, ...], **weapon_overrides: int) -> ShootingResult:
+    def _crit_volley(self, keywords: tuple[str, ...], **weapon_overrides: int) -> AttackResult:
         weapon = _weapon(skill=2, keywords=keywords, **weapon_overrides)
         result = _volley(weapon, _defender(toughness=3, save=5), models=10)
         assert result.hit.critical_hits > 0  # precondition for every test below

@@ -1,10 +1,14 @@
 """The scenario runner: the only place battlefield state mutates.
 
-`run_scenario` walks a scenario's turn entries. Each entry is one shooting
-phase for one side: every eligible unit on that side activates once, the
-side's `Strategy` chooses each shot, `core.combat.resolve_shooting` resolves
-it, and the result's final defender state (normal damage plus any mortal
-wounds) updates the target's runtime state.
+`run_scenario` walks a scenario's turn entries. A shooting entry is one
+shooting phase for one side: every eligible unit on that side activates once,
+the side's `Strategy` chooses each shot, `core.combat.resolve_shooting`
+resolves it, and the result's final defender state (normal damage plus any
+mortal wounds) updates the target's runtime state. A fight entry is one Fight
+phase, in which BOTH sides act: every engaged unit must fight exactly once,
+players alternate picking which of their units fights next — the side whose
+turn it is picks first — and casualties come off the table fight by fight, so
+a unit selected later swings with whatever models it has left (ADR 0006).
 
 Boundaries (see ADR 0005):
 
@@ -17,10 +21,13 @@ Boundaries (see ADR 0005):
 - Presentation observes through optional callbacks receiving frozen
   `VolleyEvent`s; the engine itself never prints.
 
-v1 simplifications, on purpose: weapon range is not enforced (scenarios are
+Deliberate simplifications: weapon range is not enforced (scenarios are
 pre-positioned in range; range checks arrive with movement, which also fixes
-the grid-squares-to-inches convention), and one activation fires one weapon
-profile. A unit's shootable weapons are its effective loadout — the
+the grid-squares-to-inches convention) — engagement, by contrast, IS enforced
+in the fight phase, because it is that phase's core mechanic: adjacency on
+the grid stands in for the 2" engagement range (`core.scenario
+.in_engagement_range`). One activation resolves one weapon profile. A unit's
+shootable weapons are its effective loadout — the
 scenario's per-unit loadout override if one is given, else the datasheet's
 default_loadout (see `core.models.shootable_weapons`).
 """
@@ -31,9 +38,14 @@ import random
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from wh40k_tutorial.core.combat import ShootingResult, resolve_shooting
-from wh40k_tutorial.core.models import UnitDatasheet, Weapon, shootable_weapons
-from wh40k_tutorial.core.scenario import Scenario, ScenarioTurn, opposing_side
+from wh40k_tutorial.core.combat import AttackResult, resolve_melee, resolve_shooting
+from wh40k_tutorial.core.models import UnitDatasheet, Weapon, melee_weapons, shootable_weapons
+from wh40k_tutorial.core.scenario import (
+    Scenario,
+    ScenarioTurn,
+    in_engagement_range,
+    opposing_side,
+)
 from wh40k_tutorial.strategies.base import Action, GameState, Strategy, UnitSnapshot
 
 
@@ -58,7 +70,7 @@ class UnitRuntime:
     def destroyed(self) -> bool:
         return self.models == 0
 
-    def snapshot(self, *, has_shot: bool) -> UnitSnapshot:
+    def snapshot(self, *, has_shot: bool, has_fought: bool) -> UnitSnapshot:
         return UnitSnapshot(
             unit_id=self.unit_id,
             side=self.side,
@@ -67,6 +79,7 @@ class UnitRuntime:
             models=self.models,
             wounds_on_lead=self.wounds_on_lead,
             has_shot=has_shot,
+            has_fought=has_fought,
             loadout=self.loadout,
         )
 
@@ -80,6 +93,7 @@ class BattleState:
     phase: str = ""
     active_side: str = ""
     shot_this_phase: set[str] = field(default_factory=set)
+    fought_this_phase: set[str] = field(default_factory=set)
 
     @classmethod
     def from_scenario(cls, scenario: Scenario) -> BattleState:
@@ -114,7 +128,10 @@ class BattleState:
             phase=self.phase,
             active_side=self.active_side,
             units=tuple(
-                u.snapshot(has_shot=u.unit_id in self.shot_this_phase)
+                u.snapshot(
+                    has_shot=u.unit_id in self.shot_this_phase,
+                    has_fought=u.unit_id in self.fought_this_phase,
+                )
                 for u in self.units.values()
             ),
         )
@@ -122,12 +139,12 @@ class BattleState:
 
 @dataclass(frozen=True)
 class VolleyEvent:
-    """One resolved shooting action, handed to observers for display."""
+    """One resolved attack — a shooting volley or a melee fight — for observers."""
 
     turn: int
     phase: str
     action: Action
-    result: ShootingResult
+    result: AttackResult
 
 
 def run_scenario(
@@ -158,41 +175,105 @@ def run_scenario(
         state.phase = turn.phase
         state.active_side = turn.active_side
         state.shot_this_phase = set()
+        state.fought_this_phase = set()
         if on_turn_start is not None:
             on_turn_start(turn_number, turn)
-        strategy = strategies[turn.active_side]
-
-        while True:
-            snap = state.snapshot()
-            if not snap.eligible_shooters() or not snap.surviving_enemies():
-                break
-            action = strategy.choose_action(snap)
-            attacker, weapon, target = _validate_action(action, state)
-            result = resolve_shooting(
-                attacker.datasheet,
-                attacker.models,
-                weapon,
-                target.datasheet,
-                target.wounds_on_lead,
-                target.models,
-                rng=dice,
-            )
-            target.models = result.models_remaining
-            target.wounds_on_lead = result.wounds_remaining_on_lead
-            state.shot_this_phase.add(attacker.unit_id)
-            if on_volley is not None:
-                on_volley(
-                    VolleyEvent(turn=turn_number, phase=turn.phase, action=action, result=result)
-                )
+        if turn.phase == "fight":
+            _run_fight_phase(state, strategies, turn_number, dice, on_volley)
+        else:
+            _run_shooting_phase(state, strategies, turn_number, dice, on_volley)
     return state
 
 
-def _validate_action(
-    action: Action, state: BattleState
-) -> tuple[UnitRuntime, Weapon, UnitRuntime]:
-    """Check a strategy's action against the battle rules; return the resolved pieces."""
-    if action.kind != "shoot":
-        raise EngineError(f"unknown action kind {action.kind!r} — v1 supports only 'shoot'")
+def _run_shooting_phase(
+    state: BattleState,
+    strategies: Mapping[str, Strategy],
+    turn_number: int,
+    dice: random.Random,
+    on_volley: Callable[[VolleyEvent], None] | None,
+) -> None:
+    """One side's shooting phase: every eligible unit activates once."""
+    strategy = strategies[state.active_side]
+    while True:
+        snap = state.snapshot()
+        if not snap.eligible_shooters() or not snap.surviving_enemies():
+            break
+        action = strategy.choose_action(snap)
+        attacker, weapon, target = _validate_shoot(action, state)
+        result = resolve_shooting(
+            attacker.datasheet,
+            attacker.models,
+            weapon,
+            target.datasheet,
+            target.wounds_on_lead,
+            target.models,
+            rng=dice,
+        )
+        target.models = result.models_remaining
+        target.wounds_on_lead = result.wounds_remaining_on_lead
+        state.shot_this_phase.add(attacker.unit_id)
+        if on_volley is not None:
+            on_volley(
+                VolleyEvent(turn=turn_number, phase=state.phase, action=action, result=result)
+            )
+
+
+def _run_fight_phase(
+    state: BattleState,
+    strategies: Mapping[str, Strategy],
+    turn_number: int,
+    dice: random.Random,
+    on_volley: Callable[[VolleyEvent], None] | None,
+) -> None:
+    """One Fight phase: both sides act, alternating unit by unit (12.04).
+
+    The side whose turn it is picks the first unit to fight; after each fight
+    the pick passes to the other side; a side with nothing eligible passes
+    back. Every eligible unit must fight (fighting is not optional), and
+    casualties are applied fight by fight, so a unit picked later swings with
+    only its surviving models — the phase's central lesson.
+
+    No unit in the project's data has the Fights First ability, so the
+    rulebook's Fights-First selection step is vacuously empty and this loop is
+    the Resolve Remaining Combats step; the entry order matches the rule for
+    that case (the active player, finding no Fights-First units, carries the
+    first pick into remaining combats). Fights First is deferred with charges,
+    which are what normally grants it (docs/design/fight-phase.md).
+    """
+    picker = state.active_side
+    while not state.battle_over:
+        overview = state.snapshot()
+        if not overview.eligible_fighters("attacker") and not overview.eligible_fighters(
+            "defender"
+        ):
+            break
+        if not overview.eligible_fighters(picker):
+            picker = opposing_side(picker)
+            continue
+        state.active_side = picker  # the side currently being asked to act
+        action = strategies[picker].choose_action(state.snapshot())
+        attacker, weapon, target = _validate_fight(action, state)
+        result = resolve_melee(
+            attacker.datasheet,
+            attacker.models,
+            weapon,
+            target.datasheet,
+            target.wounds_on_lead,
+            target.models,
+            rng=dice,
+        )
+        target.models = result.models_remaining
+        target.wounds_on_lead = result.wounds_remaining_on_lead
+        state.fought_this_phase.add(attacker.unit_id)
+        if on_volley is not None:
+            on_volley(
+                VolleyEvent(turn=turn_number, phase=state.phase, action=action, result=result)
+            )
+        picker = opposing_side(picker)
+
+
+def _acting_unit(action: Action, state: BattleState, verb: str) -> UnitRuntime:
+    """The unit an action activates: must exist, belong to the acting side, and live."""
     attacker = state.units.get(action.attacker_unit_id)
     if attacker is None:
         raise EngineError(f"no unit {action.attacker_unit_id!r} on the battlefield")
@@ -204,18 +285,55 @@ def _validate_action(
     if attacker.destroyed:
         raise EngineError(
             f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) is destroyed "
-            f"and cannot shoot"
+            f"and cannot {verb}"
         )
+    return attacker
+
+
+def _weapon_on(attacker: UnitRuntime, weapon_key: str) -> Weapon:
+    """The named weapon on the acting unit's datasheet."""
+    weapon = next((w for w in attacker.datasheet.weapons if w.name == weapon_key), None)
+    if weapon is None:
+        raise EngineError(
+            f"{attacker.datasheet.display_name} has no weapon {weapon_key!r}"
+        )
+    return weapon
+
+
+def _enemy_unit(target_id: str, state: BattleState, attacks_name: str) -> UnitRuntime:
+    """The action's target: must exist, be an enemy of the acting side, and live."""
+    target = state.units.get(target_id)
+    if target is None:
+        raise EngineError(f"no unit {target_id!r} on the battlefield")
+    if target.side != opposing_side(state.active_side):
+        raise EngineError(
+            f"{target.datasheet.display_name} ({target.unit_id!r}) is on your own "
+            f"side — {attacks_name} target enemy units"
+        )
+    if target.destroyed:
+        raise EngineError(
+            f"{target.datasheet.display_name} ({target.unit_id!r}) is already "
+            f"destroyed — pick a surviving target"
+        )
+    return target
+
+
+def _validate_shoot(
+    action: Action, state: BattleState
+) -> tuple[UnitRuntime, Weapon, UnitRuntime]:
+    """Check a shooting action against the battle rules; return the resolved pieces."""
+    if action.kind != "shoot":
+        raise EngineError(
+            f"action kind {action.kind!r} is not legal in a shooting phase — "
+            f"activations here are 'shoot' actions"
+        )
+    attacker = _acting_unit(action, state, verb="shoot")
     if attacker.unit_id in state.shot_this_phase:
         raise EngineError(
             f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) already shot "
             f"this phase — each unit shoots once per shooting phase"
         )
-    weapon = next((w for w in attacker.datasheet.weapons if w.name == action.weapon_key), None)
-    if weapon is None:
-        raise EngineError(
-            f"{attacker.datasheet.display_name} has no weapon {action.weapon_key!r}"
-        )
+    weapon = _weapon_on(attacker, action.weapon_key)
     if weapon.type != "ranged":
         raise EngineError(
             f"{weapon.display_name} is a melee weapon and cannot be fired in the "
@@ -228,17 +346,44 @@ def _validate_action(
             f"carrying {weapon.display_name} in this scenario — its loadout is "
             f"{', '.join(sorted(carried))}"
         )
-    target = state.units.get(action.target_unit_id)
-    if target is None:
-        raise EngineError(f"no unit {action.target_unit_id!r} on the battlefield")
-    if target.side != opposing_side(state.active_side):
+    target = _enemy_unit(action.target_unit_id, state, "shooting attacks")
+    return attacker, weapon, target
+
+
+def _validate_fight(
+    action: Action, state: BattleState
+) -> tuple[UnitRuntime, Weapon, UnitRuntime]:
+    """Check a fight action against the battle rules; return the resolved pieces."""
+    if action.kind != "fight":
         raise EngineError(
-            f"{target.datasheet.display_name} ({target.unit_id!r}) is on your own "
-            f"side — shooting attacks target enemy units"
+            f"action kind {action.kind!r} is not legal in a fight phase — "
+            f"activations here are 'fight' actions"
         )
-    if target.destroyed:
+    attacker = _acting_unit(action, state, verb="fight")
+    if attacker.unit_id in state.fought_this_phase:
         raise EngineError(
-            f"{target.datasheet.display_name} ({target.unit_id!r}) is already "
-            f"destroyed — pick a surviving target"
+            f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) already fought "
+            f"this phase — each unit is selected to fight once per fight phase"
+        )
+    weapon = _weapon_on(attacker, action.weapon_key)
+    if weapon.type != "melee":
+        raise EngineError(
+            f"{weapon.display_name} is a ranged weapon and cannot be swung in the "
+            f"fight phase — fights are made with melee weapons"
+        )
+    carried = {w.name for w in melee_weapons(attacker.datasheet, attacker.loadout)}
+    if weapon.name not in carried:
+        raise EngineError(
+            f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) is not "
+            f"carrying {weapon.display_name} in this scenario — its melee loadout "
+            f"is {', '.join(sorted(carried))}"
+        )
+    target = _enemy_unit(action.target_unit_id, state, "melee attacks")
+    if not in_engagement_range(attacker.position, target.position):
+        raise EngineError(
+            f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) is not within "
+            f"engagement range of {target.datasheet.display_name} ({target.unit_id!r}) "
+            f"— melee attacks can only target a unit the attacker is engaged with "
+            f"(adjacent squares, diagonals count)"
         )
     return attacker, weapon, target

@@ -17,7 +17,7 @@ import random
 
 import pytest
 
-from wh40k_tutorial.core.combat import ShootingResult, resolve_shooting
+from wh40k_tutorial.core.combat import AttackResult, resolve_shooting
 from wh40k_tutorial.core.expected import expected_damage
 from wh40k_tutorial.core.models import Profile, UnitDatasheet, Weapon, load_faction_by_name
 
@@ -201,7 +201,7 @@ _RUNS = 20_000
 _TOLERANCE = 0.15
 
 
-def _raw_damage(result: ShootingResult) -> int:
+def _raw_damage(result: AttackResult) -> int:
     """Total damage the volley *produced*, overkill included.
 
     `expected_damage` is documented as a raw-damage estimate: it ignores

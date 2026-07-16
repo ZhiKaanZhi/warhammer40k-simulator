@@ -6,7 +6,7 @@ The goal is **learning**, not rules-accurate simulation. We narrate every dice r
 
 ## Status
 
-All eight build phases are implemented and tested — **v1 is complete**: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline with the keyword-hook framework (Sustained Hits, Lethal Hits, Devastating Wounds with its mortal-wound track), the Rich UI shell, the scenario runner, the narrator, and the content: six verified factions and a seven-scenario teaching ladder (`01_first_shots` → `02_tougher_targets` → `03_piercing_armour` → `04_lethal_hits` → `05_sustained_hits` → `06_return_fire` → `07_devastating_wounds`). **Phase 9 — the heuristic AI opponent — is in**: `HeuristicStrategy` greedily picks the shot with the highest expected damage (estimator in `core/expected.py`, Monte Carlo-tested against the pipeline), and `06_return_fire` is the first two-sided scenario, with the opponent chosen per scenario via `opponent_strategy`. Adding scenarios or units is pure data work via the `.claude/skills`. See "Build order" below.
+All eight v1 build phases are implemented and tested — **v1 is complete**: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline with the keyword-hook framework (Sustained Hits, Lethal Hits, Devastating Wounds with its mortal-wound track), the Rich UI shell, the scenario runner, the narrator, and the content: six verified factions and a seven-scenario teaching ladder (`01_first_shots` → `02_tougher_targets` → `03_piercing_armour` → `04_lethal_hits` → `05_sustained_hits` → `06_return_fire` → `07_devastating_wounds`). **Phase 9 — the heuristic AI opponent — is in**: `HeuristicStrategy` greedily picks the shot with the highest expected damage (estimator in `core/expected.py`, Monte Carlo-tested against the pipeline), and `06_return_fire` is the first two-sided scenario, with the opponent chosen per scenario via `opponent_strategy`. **Phase 10 — the fight phase, v2's headliner — is in**: scenario turns may be `"fight"` turns, in which both sides act under the engine-owned alternation of the rulebook's Fight step (`resolve_melee` reuses the exact shooting attack sequence; ADR 0006, `docs/design/fight-phase.md`). A fight-phase teaching scenario is the next data step. Adding scenarios or units is pure data work via the `.claude/skills`. See "Build order" below.
 
 ## Tech stack
 
@@ -46,7 +46,7 @@ src/wh40k_tutorial/
 │   ├── abilities.py# ✅ Implemented. Keyword hooks (ADR 0002): Sustained/Lethal/Devastating.
 │   ├── expected.py # ✅ Implemented. Expected-damage estimator mirroring the pipeline (Monte Carlo-tested).
 │   └── scenario.py # ✅ Implemented. Scenario dataclasses + validating JSON loader.
-├── engine.py       # ✅ Implemented. Runtime battle state + the turn loop (ADR 0005).
+├── engine.py       # ✅ Implemented. Runtime state, turn loop, fight-phase alternation (ADRs 0005/0006).
 ├── narrator.py     # ✅ Implemented. Pure formatter: the rule behind each step + "why?" expansions (ADR 0001).
 ├── strategies/     # How a side picks its actions each turn
 │   ├── base.py     # ✅ Strategy protocol + frozen GameState snapshots — extension point for AI
@@ -70,7 +70,7 @@ Everything else is mechanical. Get these two right.
 
 ### 1. Combat as a pipeline
 
-The shooting sequence is `attacks → hits → wounds → saves → damage`. Each step is a pure function taking the previous step's result and returning the next. Special rules (Sustained Hits, Lethal Hits, AP, rerolls, modifiers) are **hooks into the relevant step**, never bare `if/elif` branches in a giant function. The melee sequence reuses the same pipeline with one extra step. Adding an ability means writing a small hook and wiring it in — not modifying core combat code.
+The attack sequence is `attacks → hits → wounds → saves → damage`. Each step is a pure function taking the previous step's result and returning the next. Special rules (Sustained Hits, Lethal Hits, AP, rerolls, modifiers) are **hooks into the relevant step**, never bare `if/elif` branches in a giant function. Melee proved the promise: `resolve_melee` and `resolve_shooting` are two thin entry points over one shared sequence (the hit roll reads WS or BS through the same field), and everything melee-*specific* — who fights when, engagement, casualty timing — is engine-level fight ordering (ADR 0006), not pipeline code. Adding an ability means writing a small hook and wiring it in — not modifying core combat code.
 
 ### 2. Strategy protocol
 
@@ -90,6 +90,8 @@ Each phase is independently shippable. Don't move on until the previous one has 
 8. **More scenarios + factions** ✅ done — six factions (Space Marines, Tyranids, Necrons, Orks, T'au Empire, Adeptus Mechanicus; seven units), every profile verified against the 10th-codex baseline plus the official 11th Faction Pack errata; plus the scenario ladder `02_tougher_targets` (wound chart by contrast), `03_piercing_armour` (AP vs the invulnerable floor), `04_lethal_hits` (the first ability), `05_sustained_hits` (the second critical-hit ability, armed through a per-scenario **loadout override** — scenarios can swap a unit onto its wargear alternative without touching the datasheet's default; see the add-scenario skill). Further content is pure data work via the add-unit / add-scenario skills.
 
 9. **Heuristic AI opponent** ✅ done — held until after phase 8 exactly as planned (`ScriptedStrategy` kept the engine honest first): `core/expected.py` estimates a volley's mean damage with the pipeline's own targets and keyword semantics and is tested against `resolve_shooting`'s Monte Carlo mean; `strategies/heuristic.py` greedily takes the best capped-expected-damage shot; scenarios opt in with `opponent_strategy: "heuristic"`, and `06_return_fire` — the first two-sided scenario — teaches the enemy's target-priority arithmetic by letting the player feel it.
+
+10. **Fight phase (v2)** ✅ done — `resolve_melee` over the shared attack sequence (twin-weapon test pins the equivalence); engine-owned Fight-step alternation per the 11th Core Rules 12.04 (active side picks first, sides alternate, a side with nothing eligible passes, fighting is mandatory, casualties land before the next pick); adjacency-as-engagement convention with one project-wide definition; fight menus and scripted fights behind the same Strategy protocol; the record renamed `AttackResult`. Design + verified findings: `docs/design/fight-phase.md`, ADR 0006. The first fight *scenario* is the next data phase.
 
 ## Code conventions
 
@@ -113,7 +115,7 @@ Warhammer 40k 11th edition (released June 2026) is the reference. It is an evolu
 
 This is a teaching tool. Things explicitly *out of scope* for v1:
 
-- Movement and charge mechanics (scenarios are pre-positioned)
+- Movement and charge mechanics (scenarios are pre-positioned — for melee, pre-positioned *in engagement range*)
 - Terrain and line of sight
 - Stratagems, command points, detachment rules
 - Morale/battle-shock

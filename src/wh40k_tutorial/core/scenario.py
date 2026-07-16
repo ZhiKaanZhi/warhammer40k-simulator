@@ -20,6 +20,7 @@ from wh40k_tutorial.core.models import (
     FactionDataError,
     UnitDatasheet,
     load_faction_by_name,
+    melee_weapons,
     shootable_weapons,
 )
 
@@ -30,8 +31,27 @@ BATTLEFIELD_HEIGHT = 8
 
 SIDES = ("attacker", "defender")
 
-# v1 models the shooting phase only (see "Scope discipline" in CLAUDE.md).
-_SUPPORTED_PHASES = ("shooting",)
+# The phases a scenario turn may declare. Shooting arrived with v1; the
+# fight phase is the first v2 mechanic (see docs/design/fight-phase.md).
+_SUPPORTED_PHASES = ("shooting", "fight")
+
+# Engagement, translated to our grid: one square of separation or less —
+# horizontally, vertically or diagonally — puts two units in each other's
+# engagement range (the 11th-edition distance is 2" horizontally; scenarios
+# are pre-positioned, so adjacency IS the convention until movement fixes a
+# squares-to-inches scale, exactly like weapon range today).
+ENGAGEMENT_RANGE_SQUARES = 1
+
+
+def in_engagement_range(a: tuple[int, int], b: tuple[int, int]) -> bool:
+    """True when two grid positions are within engagement range of each other.
+
+    Chebyshev distance <= ENGAGEMENT_RANGE_SQUARES: orthogonal or diagonal
+    neighbours count. The single definition of "engaged" — the loader's
+    fight-turn check, the engine's eligibility and validation, and the
+    strategies' target menus all defer here.
+    """
+    return max(abs(a[0] - b[0]), abs(a[1] - b[1])) <= ENGAGEMENT_RANGE_SQUARES
 
 # Who plays the non-player side: "scripted" replays the scenario's action
 # lists; "heuristic" is the expected-damage AI (strategies/heuristic.py).
@@ -68,14 +88,14 @@ class ScenarioSide:
 
 @dataclass(frozen=True)
 class ScenarioAction:
-    """One scripted shooting action inside a turn entry.
+    """One scripted action inside a turn entry — a shot, or a fight.
 
     This is the *data-file* shape; `strategies.scripted` converts it into the
     protocol's `Action` at runtime (core stays free of the strategies layer).
     """
 
     attacker_unit_id: str
-    weapon: str  # weapon key on the attacker's datasheet; must be ranged
+    weapon: str  # weapon key on the attacker's datasheet: ranged in shooting turns, melee in fights
     target_unit_id: str
 
 
@@ -88,8 +108,8 @@ class ScenarioTurn:
     Turns the *player* acts in normally leave it empty — the human decides.
     """
 
-    phase: str  # v1: "shooting" only
-    active_side: str
+    phase: str  # "shooting" or "fight"
+    active_side: str  # whose turn it is; in a fight phase BOTH sides act — this side picks first
     narrate_before: str = ""
     actions: tuple[ScenarioAction, ...] = ()
 
@@ -279,8 +299,10 @@ def _cross_check_placement(scenario_units: tuple[ScenarioUnit, ...], source: str
 
 def _parse_action(
     raw: object,
-    active: ScenarioSide,
-    enemies: ScenarioSide,
+    attacker_side: ScenarioSide,
+    defender_side: ScenarioSide,
+    active_side: str,
+    phase: str,
     ctx: str,
 ) -> ScenarioAction:
     if not isinstance(raw, dict):
@@ -288,23 +310,47 @@ def _parse_action(
     attacker_id = _str_field(raw, "attacker", ctx)
     weapon_key = _str_field(raw, "weapon", ctx)
     target_id = _str_field(raw, "target", ctx)
-    shooter = next((u for u in active.units if u.unit_id == attacker_id), None)
+    if phase == "fight":
+        # Both sides act in a fight turn, so a scripted fight belongs to
+        # whichever side its acting unit is on.
+        acting = next(
+            (
+                side
+                for side in (attacker_side, defender_side)
+                if any(u.unit_id == attacker_id for u in side.units)
+            ),
+            None,
+        )
+        if acting is None:
+            raise ScenarioDataError(
+                f"{ctx}: attacker {attacker_id!r} is not a unit on either side"
+            )
+    else:
+        acting = attacker_side if active_side == "attacker" else defender_side
+    enemies = defender_side if acting is attacker_side else attacker_side
+    shooter = next((u for u in acting.units if u.unit_id == attacker_id), None)
     if shooter is None:
         raise ScenarioDataError(
             f"{ctx}: attacker {attacker_id!r} is not a unit on the active "
-            f"({active.name}) side"
+            f"({acting.name}) side"
         )
     weapon = next((w for w in shooter.datasheet.weapons if w.name == weapon_key), None)
     if weapon is None:
         raise ScenarioDataError(
             f"{ctx}: {shooter.datasheet.display_name} has no weapon {weapon_key!r}"
         )
-    if weapon.type != "ranged":
+    needed = "melee" if phase == "fight" else "ranged"
+    if weapon.type != needed:
         raise ScenarioDataError(
-            f"{ctx}: {weapon.display_name} is a melee weapon — scripted shooting "
-            f"actions need a ranged weapon"
+            f"{ctx}: {weapon.display_name} is a {weapon.type} weapon — scripted "
+            f"actions in a {phase} turn need a {needed} weapon"
         )
-    carried = {w.name for w in shootable_weapons(shooter.datasheet, shooter.loadout)}
+    carried_weapons = (
+        melee_weapons(shooter.datasheet, shooter.loadout)
+        if phase == "fight"
+        else shootable_weapons(shooter.datasheet, shooter.loadout)
+    )
+    carried = {w.name for w in carried_weapons}
     if weapon_key not in carried:
         raise ScenarioDataError(
             f"{ctx}: {shooter.datasheet.display_name} ({attacker_id!r}) is not "
@@ -340,10 +386,8 @@ def _parse_turn(
     actions_raw = raw.get("actions", [])
     if not isinstance(actions_raw, list):
         raise ScenarioDataError(f"{ctx}: 'actions' must be a list, got {actions_raw!r}")
-    active = attacker if active_side == "attacker" else defender
-    enemies = defender if active_side == "attacker" else attacker
     actions = tuple(
-        _parse_action(a, active, enemies, f"{ctx}.actions[{i}]")
+        _parse_action(a, attacker, defender, active_side, phase, f"{ctx}.actions[{i}]")
         for i, a in enumerate(actions_raw)
     )
     return ScenarioTurn(
@@ -388,6 +432,39 @@ def _parse_scenario(data: object, source: str) -> Scenario:
                     f"contradict opponent_strategy 'heuristic' — the AI picks its "
                     f"own shots; remove the actions or drop the field"
                 )
+    fight_turns = [i for i, t in enumerate(turns) if t.phase == "fight"]
+    if fight_turns:
+        engaged = any(
+            in_engagement_range(a.position, d.position)
+            for a in attacker.units
+            for d in defender.units
+        )
+        if not engaged:
+            raise ScenarioDataError(
+                f"{source}.turns[{fight_turns[0]}]: a fight turn needs at least one "
+                f"engaged pair, but no attacker unit starts within engagement range "
+                f"of a defender unit — place opposing units on adjacent squares "
+                f"(within {ENGAGEMENT_RANGE_SQUARES} square, diagonals count)"
+            )
+        if opponent_strategy == "heuristic":
+            raise ScenarioDataError(
+                f"{source}.turns[{fight_turns[0]}]: opponent_strategy 'heuristic' "
+                f"does not fight yet — the AI only picks shots for now; script the "
+                f"opponent's fight actions instead (see docs/design/fight-phase.md)"
+            )
+        player_units = {
+            u.unit_id
+            for u in (attacker if player_side == "attacker" else defender).units
+        }
+        for i in fight_turns:
+            for a in turns[i].actions:
+                if a.attacker_unit_id in player_units:
+                    raise ScenarioDataError(
+                        f"{source}.turns[{i}]: fight action for "
+                        f"{a.attacker_unit_id!r} scripts the player's own side — "
+                        f"the player picks their own fights; script only the "
+                        f"{opposing_side(player_side)}'s"
+                    )
     return Scenario(
         scenario_id=scenario_id,
         title=_str_field(data, "title", source),

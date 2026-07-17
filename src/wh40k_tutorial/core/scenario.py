@@ -426,11 +426,16 @@ def _parse_scenario(data: object, source: str) -> Scenario:
     if opponent_strategy == "heuristic":
         opponent = opposing_side(player_side)
         for i, turn in enumerate(turns):
-            if turn.active_side == opponent and turn.actions:
+            if not turn.actions:
+                continue
+            # A fight turn's actions always script the opponent (the loader
+            # forbids player-side fight scripts below), so under a heuristic
+            # opponent they are contradictory regardless of active_side.
+            if turn.phase == "fight" or turn.active_side == opponent:
                 raise ScenarioDataError(
                     f"{source}.turns[{i}]: scripted 'actions' for the {opponent} "
                     f"contradict opponent_strategy 'heuristic' — the AI picks its "
-                    f"own shots; remove the actions or drop the field"
+                    f"own shots and fights; remove the actions or drop the field"
                 )
     fight_turns = [i for i, t in enumerate(turns) if t.phase == "fight"]
     if fight_turns:
@@ -445,12 +450,6 @@ def _parse_scenario(data: object, source: str) -> Scenario:
                 f"engaged pair, but no attacker unit starts within engagement range "
                 f"of a defender unit — place opposing units on adjacent squares "
                 f"(within {ENGAGEMENT_RANGE_SQUARES} square, diagonals count)"
-            )
-        if opponent_strategy == "heuristic":
-            raise ScenarioDataError(
-                f"{source}.turns[{fight_turns[0]}]: opponent_strategy 'heuristic' "
-                f"does not fight yet — the AI only picks shots for now; script the "
-                f"opponent's fight actions instead (see docs/design/fight-phase.md)"
             )
         player_units = {
             u.unit_id

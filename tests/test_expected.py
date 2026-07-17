@@ -14,10 +14,11 @@ Two layers, per the project's dice-testing template:
 from __future__ import annotations
 
 import random
+from dataclasses import replace
 
 import pytest
 
-from wh40k_tutorial.core.combat import AttackResult, resolve_shooting
+from wh40k_tutorial.core.combat import AttackResult, resolve_melee, resolve_shooting
 from wh40k_tutorial.core.expected import expected_damage
 from wh40k_tutorial.core.models import Profile, UnitDatasheet, Weapon, load_faction_by_name
 
@@ -325,3 +326,58 @@ class TestMonteCarloAgreement:
         assert mean == pytest.approx(
             expected_damage(5, weapon, defender.profile), abs=_TOLERANCE
         )
+
+
+# ---------------------------------------------------------------------------
+# Melee: the estimator serves the fight phase with the same numbers
+# ---------------------------------------------------------------------------
+
+ORKS = load_faction_by_name("orks")["boyz"]
+
+
+def _monte_carlo_melee_mean(
+    attacker: UnitDatasheet,
+    attacker_models: int,
+    weapon: Weapon,
+    defender: UnitDatasheet,
+    defender_models: int,
+) -> float:
+    rng = random.Random(2026)
+    total = 0
+    for _ in range(_RUNS):
+        result = resolve_melee(
+            attacker,
+            attacker_models,
+            weapon,
+            defender,
+            defender.profile.wounds,
+            defender_models,
+            rng=rng,
+        )
+        total += _raw_damage(result)
+    return total / _RUNS
+
+
+class TestMeleeAgreement:
+    def test_estimator_never_reads_the_weapon_type(self) -> None:
+        """Twin weapons — identical stats, one ranged, one melee — must score
+        identically: WS and BS are the same `skill` field to the estimator."""
+        gun = _weapon()
+        blade = replace(gun, type="melee", range=0)
+        assert expected_damage(10, gun, MARINES.profile) == expected_damage(
+            10, blade, MARINES.profile
+        )
+
+    def test_choppa_vs_marines_matches_the_melee_monte_carlo(self) -> None:
+        """The estimate may not drift from what `resolve_melee` actually does."""
+        choppa = _weapon_of(ORKS, "choppa")
+        mean = _monte_carlo_melee_mean(ORKS, 10, choppa, MARINES, 10)
+        assert mean == pytest.approx(
+            expected_damage(10, choppa, MARINES.profile), abs=_TOLERANCE
+        )
+
+    def test_choppa_vs_marines_hand_computation(self) -> None:
+        # 30 attacks x 2/3 hit x 1/2 wound (S4 vs T4) x 1/2 failed save
+        # (3+ armour worsened to 4+ by AP -1) x 1 damage = 5.0
+        choppa = _weapon_of(ORKS, "choppa")
+        assert expected_damage(10, choppa, MARINES.profile) == pytest.approx(5.0)

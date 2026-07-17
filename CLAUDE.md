@@ -1,12 +1,12 @@
 # warhammer40k-simulator
 
-An interactive **terminal tutorial** that teaches Warhammer 40,000 (11th edition) by playing it. The player makes decisions for one side; the other side is scripted in the early teaching ladder and, from scenario 06 on, can be the **heuristic AI** — an expected-damage shot picker behind the same `Strategy` protocol, so scenarios choose their opponent without any engine change.
+An interactive **terminal tutorial** that teaches Warhammer 40,000 (11th edition) by playing it. The player makes decisions for one side; the other side is scripted in the early teaching ladder and, from scenario 06 on, can be the **heuristic AI** — an expected-damage action picker (shots and fights alike) behind the same `Strategy` protocol, so scenarios choose their opponent without any engine change.
 
 The goal is **learning**, not rules-accurate simulation. We narrate every dice roll and explain the rule that drove it. Accuracy of the rules we *do* model matters; completeness of the rule set does not.
 
 ## Status
 
-All eight v1 build phases are implemented and tested — **v1 is complete**: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline with the keyword-hook framework (Sustained Hits, Lethal Hits, Devastating Wounds with its mortal-wound track), the Rich UI shell, the scenario runner, the narrator, and the content: six verified factions and a seven-scenario teaching ladder (`01_first_shots` → `02_tougher_targets` → `03_piercing_armour` → `04_lethal_hits` → `05_sustained_hits` → `06_return_fire` → `07_devastating_wounds` → `08_first_blood`). **Phase 9 — the heuristic AI opponent — is in**: `HeuristicStrategy` greedily picks the shot with the highest expected damage (estimator in `core/expected.py`, Monte Carlo-tested against the pipeline), and `06_return_fire` is the first two-sided scenario, with the opponent chosen per scenario via `opponent_strategy`. **Phase 10 — the fight phase, v2's headliner — is in**: scenario turns may be `"fight"` turns, in which both sides act under the engine-owned alternation of the rulebook's Fight step (`resolve_melee` reuses the exact shooting attack sequence; ADR 0006, `docs/design/fight-phase.md`). `08_first_blood` is its teaching scenario: the player's Orks strike first and the Marines answer with survivors only (demo seed 20). Adding scenarios or units is pure data work via the `.claude/skills`. See "Build order" below.
+All eight v1 build phases are implemented and tested — **v1 is complete**: dice primitives, the domain model with its validating JSON loader, the full shooting pipeline with the keyword-hook framework (Sustained Hits, Lethal Hits, Devastating Wounds with its mortal-wound track), the Rich UI shell, the scenario runner, the narrator, and the content: six verified factions and a seven-scenario teaching ladder (`01_first_shots` → `02_tougher_targets` → `03_piercing_armour` → `04_lethal_hits` → `05_sustained_hits` → `06_return_fire` → `07_devastating_wounds` → `08_first_blood`). **Phase 9 — the heuristic AI opponent — is in**: `HeuristicStrategy` greedily picks the shot with the highest expected damage (estimator in `core/expected.py`, Monte Carlo-tested against the pipeline), and `06_return_fire` is the first two-sided scenario, with the opponent chosen per scenario via `opponent_strategy`. **Phase 10 — the fight phase, v2's headliner — is in**: scenario turns may be `"fight"` turns, in which both sides act under the engine-owned alternation of the rulebook's Fight step (`resolve_melee` reuses the exact shooting attack sequence; ADR 0006, `docs/design/fight-phase.md`). `08_first_blood` is its teaching scenario: the player's Orks strike first and the Marines answer with survivors only (demo seed 20). The heuristic AI fights too — the same capped expected-damage pick, restricted to engaged targets, deadliest fight first — so two-sided fight scenarios can run against it. Adding scenarios or units is pure data work via the `.claude/skills`. See "Build order" below.
 
 ## Tech stack
 
@@ -52,7 +52,7 @@ src/wh40k_tutorial/
 │   ├── base.py     # ✅ Strategy protocol + frozen GameState snapshots — extension point for AI
 │   ├── human.py    # ✅ Implemented. Prompts the player via Click menus.
 │   ├── scripted.py # ✅ Implemented. Replays the scenario's scripted actions.
-│   └── heuristic.py# ✅ Implemented. The AI opponent: greedy expected-damage shot picking.
+│   └── heuristic.py# ✅ Implemented. The AI opponent: greedy expected-damage shots and fights.
 ├── data/
 │   ├── factions/   # JSON unit datasheets (one file per faction)
 │   └── scenarios/  # JSON scenario definitions

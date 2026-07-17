@@ -136,7 +136,7 @@ class TestValidScenario:
 
 
 class TestPackagedScenarios:
-    def test_all_seven_scenarios_are_listed(self) -> None:
+    def test_all_eight_scenarios_are_listed(self) -> None:
         assert [s.scenario_id for s in available_scenarios()] == [
             "01_first_shots",
             "02_tougher_targets",
@@ -145,7 +145,25 @@ class TestPackagedScenarios:
             "05_sustained_hits",
             "06_return_fire",
             "07_devastating_wounds",
+            "08_first_blood",
         ]
+
+    def test_first_blood_is_the_first_fight_scenario(self) -> None:
+        scenario = load_scenario_by_id("08_first_blood")
+        assert scenario.player_side == "attacker"
+        assert scenario.attacker.faction == "orks"
+        assert scenario.defender.units[0].datasheet.key == "intercessor_squad"
+        turn = scenario.turns[0]
+        assert len(scenario.turns) == 1
+        assert turn.phase == "fight"
+        assert turn.active_side == "attacker"  # the player picks first
+        # The starting positions are engaged — the loader enforces this too.
+        assert in_engagement_range(
+            scenario.attacker.units[0].position, scenario.defender.units[0].position
+        )
+        # The script covers the opponent only; the player picks their own fight.
+        assert [a.attacker_unit_id for a in turn.actions] == ["marines_1"]
+        assert turn.actions[0].weapon == "close_combat_weapon"
 
     def test_devastating_wounds_arms_the_arc_rifle_override(self) -> None:
         scenario = load_scenario_by_id("07_devastating_wounds")

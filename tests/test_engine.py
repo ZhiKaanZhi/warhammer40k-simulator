@@ -24,7 +24,7 @@ from wh40k_tutorial.core.scenario import (
 )
 from wh40k_tutorial.engine import BattleState, EngineError, VolleyEvent, run_scenario
 from wh40k_tutorial.strategies.base import Action
-from wh40k_tutorial.strategies.scripted import ScriptedStrategy
+from wh40k_tutorial.strategies.scripted import ScriptedStrategy, scripted_actions_for
 
 MARINES = load_faction_by_name("space_marines")["intercessor_squad"]
 GANTS = load_faction_by_name("tyranids")["termagants"]
@@ -550,3 +550,39 @@ class TestFightPhase:
         )
         assert len(events) == 1
         assert state.side_wiped("defender")
+
+
+class TestFirstBloodScenarioMath:
+    """Scenario 08 at its demo seed: the strike-order lesson, pinned."""
+
+    SEED = 20
+
+    def test_the_return_swing_counts_survivors_only(self) -> None:
+        scenario = load_scenario_by_id("08_first_blood")
+        strategies = {
+            "attacker": ScriptedStrategy(
+                [Action(FIGHT, "boyz_1", "choppa", "marines_1")]
+            ),
+            "defender": ScriptedStrategy(scripted_actions_for(scenario, "defender")),
+        }
+        events: list[VolleyEvent] = []
+        state = run_scenario(
+            scenario, strategies, rng=random.Random(self.SEED), on_volley=events.append
+        )
+
+        boyz_swing, marine_answer = events
+        assert boyz_swing.action.attacker_unit_id == "boyz_1"
+        assert marine_answer.action.attacker_unit_id == "marines_1"
+        # The identity that IS the lesson, true at any seed:
+        assert (
+            marine_answer.result.attack.attacker_models
+            == boyz_swing.result.models_remaining
+        )
+        # ...and the demo seed's specific story: 2 Marines slain (+1 wounded),
+        # so 3 answer with 9 dice instead of 15, and 3 Boyz fall to them.
+        assert boyz_swing.result.models_remaining == 3
+        assert boyz_swing.result.wounds_remaining_on_lead == 1
+        assert marine_answer.result.attack.total_attacks == 9
+        assert marine_answer.result.models_remaining == 7
+        assert state.units["boyz_1"].models == 7
+        assert state.units["marines_1"].models == 3

@@ -1,0 +1,32 @@
+{
+  "id": "08_first_blood",
+  "title": "First Blood",
+  "teaches": "the fight phase: both sides fight, and the casualties you inflict first never swing back.",
+  "intro": "Every battle so far was settled at rifle range. Not this one. Your Ork Boyz stand eye to eye with a squad of Space Marine Intercessors — this is the fight phase, and it plays by different rules: BOTH sides fight in it, every engaged unit must swing, and the players take turns picking who swings next. You pick first, because it is your turn. Watch two things: the hit rolls now use Weapon Skill (WS) instead of Ballistic Skill, and when the Marines answer, count the dice in their ATTACKS line — every Marine you cut down before then never gets to make his.",
+  "player_side": "attacker",
+  "sides": {
+    "attacker": {
+      "faction": "orks",
+      "units": [
+        { "id": "boyz_1", "datasheet": "boyz", "position": [5, 4], "models": 10 }
+      ]
+    },
+    "defender": {
+      "faction": "space_marines",
+      "units": [
+        { "id": "marines_1", "datasheet": "intercessor_squad", "position": [6, 4], "models": 5 }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "fight",
+      "active_side": "attacker",
+      "narrate_before": "'Ere we go! The Boyz crash into the Marines, choppas swinging. Ten Boyz, three attacks each — thirty dice, hitting on the Boyz' Weapon Skill of 3+. Then whoever is still standing in blue gets to answer.",
+      "actions": [
+        { "attacker": "marines_1", "weapon": "close_combat_weapon", "target": "boyz_1" }
+      ]
+    }
+  ],
+  "outro": "That was the fight phase, and it showed you three things shooting never could. First: the hit roll used Weapon Skill, not Ballistic Skill — Boyz are terrible shots (BS 5+) but vicious up close (WS 3+), which is why Orks want this fight and Marines don't. Second: melee always answers back — both sides fought in the same phase, and fighting is not optional. Third, and most important: the answer came from the survivors only. The Marines brought five models and fifteen attacks to this fight — count the dice they actually rolled. Striking first is not a bonus die or a modifier; it is attrition, because a dead model makes no attacks. You struck first because it was your turn. In the full game, CHARGING is how you seize that right on someone else's — that arrives with movement in a later update. Replay with a few different seeds and watch how the whole exchange tilts on those opening swings."
+}

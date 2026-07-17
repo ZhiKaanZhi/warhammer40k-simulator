@@ -96,9 +96,9 @@ the whole unit in reach, so every model fights.
 
 ## Next steps
 
-1. **Scenario 08** (next PR): the first fight-phase teaching scenario — Space Marines vs Ork Boyz
-   (choppas: A3 WS3+ S4 AP-1 — the faction built for this), one fight turn, demo seed chosen so the
-   strike-order lesson is unmistakable.
+1. ✅ **Scenario 08 shipped** — `08_first_blood`: the player's Ork Boyz (choppas: A3 WS3+ S4 AP-1 —
+   the faction built for this) against Intercessors, one fight turn, player picks first. Demo seed 20:
+   30 Ork dice slay 2 Marines (+1 wounded), and the 3 survivors answer with 9 dice instead of 15.
 2. A later scenario can teach the *ordering decision itself* (two combats, the player chooses which
    fight happens first).
 3. Heuristic melee, then movement/charges — which unlock Pile In, Overrun, and Fights First.

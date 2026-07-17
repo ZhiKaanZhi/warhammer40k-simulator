@@ -54,9 +54,12 @@ carrying a melee weapon, not yet selected to fight this phase.
 fight menu offering only legal picks; `ScriptedStrategy` replays fight actions from the scenario file. A
 fight turn's `actions` array scripts **the opponent's** picks (the loader rejects scripts for the
 player's side — the player picks their own fights); since both sides act in the turn, a scripted fight
-belongs to whichever side its acting unit is on, regardless of `active_side`. `HeuristicStrategy` does
-not fight yet — the loader rejects `opponent_strategy: "heuristic"` in scenarios with fight turns, and
-teaching it melee (the estimator already mirrors the pipeline) is a natural follow-up.
+belongs to whichever side its acting unit is on, regardless of `active_side`. `HeuristicStrategy` **fights**
+(since PR #19): in a fight phase it enumerates eligible fighter x melee weapon x *engaged* target and
+takes the highest capped expected damage — the estimator never reads the weapon's type, so the AI's
+shooting brain drives melee unchanged (Monte Carlo-tested against `resolve_melee`). Greedy-per-pick
+doubles as its ordering policy: deadliest available fight first. Under a heuristic opponent the loader
+rejects scripted fight actions (they would script the AI's own picks).
 
 **Record & presentation.** The shared record is now honestly named `AttackResult` (was
 `ShootingResult`). The narrator was already skill-aware; it now also says *fights/attackers* where it
@@ -72,8 +75,7 @@ the whole unit in reach, so every model fights.
 - **Whole units fight.** Real games count only models within engagement range; pre-positioned scenarios
   are staged fully engaged. The narrator's melee expansion says so.
 - **Deferred, explicitly:** Pile In / Consolidate (3" moves), Overrun fights, Fights First, multi-target
-  attack splitting, shooting-at-engaged enforcement (no mixed-phase scenario exists yet), heuristic
-  melee.
+  attack splitting, shooting-at-engaged enforcement (no mixed-phase scenario exists yet).
 
 ## Edge cases
 
@@ -101,4 +103,5 @@ the whole unit in reach, so every model fights.
    30 Ork dice slay 2 Marines (+1 wounded), and the 3 survivors answer with 9 dice instead of 15.
 2. A later scenario can teach the *ordering decision itself* (two combats, the player chooses which
    fight happens first).
-3. Heuristic melee, then movement/charges — which unlock Pile In, Overrun, and Fights First.
+3. ✅ **Heuristic melee shipped** (PR #19). Next: movement/charges — which unlock Pile In, Overrun,
+   and Fights First.

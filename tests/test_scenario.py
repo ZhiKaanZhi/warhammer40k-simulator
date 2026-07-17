@@ -578,10 +578,22 @@ class TestFightTurns:
         with pytest.raises(ScenarioDataError, match="player picks their own fights"):
             _load(tmp_path, data)
 
-    def test_heuristic_opponent_cannot_take_a_fight_turn_yet(self, tmp_path: Path) -> None:
+    def test_heuristic_opponent_may_take_a_fight_turn(self, tmp_path: Path) -> None:
         data = _fight_base()
         data["opponent_strategy"] = "heuristic"
-        with pytest.raises(ScenarioDataError, match="does not fight yet"):
+        scenario = _load(tmp_path, data)
+        assert scenario.opponent_strategy == "heuristic"
+        assert scenario.turns[0].phase == "fight"
+
+    def test_heuristic_opponent_rejects_scripted_fight_actions(self, tmp_path: Path) -> None:
+        """Fight-turn actions always script the opponent, so under a heuristic
+        opponent they contradict it even on the player's own turn."""
+        data = _fight_base()
+        data["opponent_strategy"] = "heuristic"
+        data["turns"][0]["actions"] = [
+            {"attacker": "termagants_1", "weapon": "claws_and_teeth", "target": "marines_1"}
+        ]
+        with pytest.raises(ScenarioDataError, match="own shots and fights"):
             _load(tmp_path, data)
 
     def test_unknown_phase_is_still_rejected(self, tmp_path: Path) -> None:

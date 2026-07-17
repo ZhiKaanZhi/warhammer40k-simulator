@@ -46,6 +46,9 @@ engagement **is enforced**, because it is not a distance nicety but the mechanic
 on; the loader rejects scripts for the player's side). `Action` gains the kind `"fight"` with the same
 fields as `"shoot"`. Per-phase activation tracking is per kind (`shot_this_phase` /
 `fought_this_phase`), reset per turn entry. `HeuristicStrategy` cannot fight yet, and the loader says so
-rather than letting a scenario find out at runtime. `core.models.melee_weapons` mirrors
+rather than letting a scenario find out at runtime. *(Amended 2026-07-18: the
+heuristic now fights — same capped-expected-damage brain, candidates drawn from engaged targets only —
+and the loader's guard became "no scripted fight actions under a heuristic opponent", since fight-turn
+scripts always belong to the opponent.)* `core.models.melee_weapons` mirrors
 `shootable_weapons` and falls back to the sheet's melee weapons when a loadout override names only guns —
 swapping rifles must never disarm a unit in melee (04.01 gives every model one melee pick).

@@ -13,8 +13,9 @@ import random
 from wh40k_tutorial.core.models import UnitDatasheet, load_faction_by_name
 from wh40k_tutorial.core.scenario import load_scenario_by_id
 from wh40k_tutorial.engine import VolleyEvent, run_scenario
-from wh40k_tutorial.strategies.base import GameState, UnitSnapshot
+from wh40k_tutorial.strategies.base import Action, GameState, UnitSnapshot
 from wh40k_tutorial.strategies.heuristic import HeuristicStrategy
+from wh40k_tutorial.strategies.scripted import ScriptedStrategy
 
 MARINES = load_faction_by_name("space_marines")["intercessor_squad"]
 GANTS = load_faction_by_name("tyranids")["termagants"]
@@ -31,6 +32,7 @@ def _snap(
     models: int | None = None,
     wounds_on_lead: int | None = None,
     has_shot: bool = False,
+    has_fought: bool = False,
     loadout: tuple[str, ...] = (),
     position: tuple[int, int] = (0, 0),
 ) -> UnitSnapshot:
@@ -47,12 +49,15 @@ def _snap(
             else wounds_on_lead
         ),
         has_shot=has_shot,
+        has_fought=has_fought,
         loadout=loadout,
     )
 
 
-def _state(*units: UnitSnapshot, active_side: str = "attacker") -> GameState:
-    return GameState(turn=1, phase="shooting", active_side=active_side, units=units)
+def _state(
+    *units: UnitSnapshot, active_side: str = "attacker", phase: str = "shooting"
+) -> GameState:
+    return GameState(turn=1, phase=phase, active_side=active_side, units=units)
 
 
 class TestTargetChoice:
@@ -150,3 +155,132 @@ class TestEndToEnd:
         tau_volleys = [e for e in events if e.action.attacker_unit_id == "strike_team_1"]
         assert tau_volleys, "the T'au never got to return fire"
         assert all(e.action.target_unit_id == "warriors_1" for e in tau_volleys)
+
+
+ORKS = load_faction_by_name("orks")["boyz"]
+
+
+class TestFightChoice:
+    """The same brain, asked in a fight phase: fighter x melee weapon x
+    ENGAGED enemy, scored by capped expected damage."""
+
+    def test_returns_a_fight_action_with_the_melee_weapon(self) -> None:
+        state = _state(
+            _snap("boyz", "attacker", ORKS, position=(4, 4)),
+            _snap("marines", "defender", MARINES, position=(5, 4)),
+            phase="fight",
+        )
+        action = HeuristicStrategy().choose_action(state)
+        assert action == Action("fight", "boyz", "choppa", "marines")
+
+    def test_only_engaged_enemies_are_candidates(self) -> None:
+        # Termagants score higher for choppas (T3, Sv5+) than Marines — but
+        # they are out of reach, so the engaged Marines must win.
+        state = _state(
+            _snap("boyz", "attacker", ORKS, position=(4, 4)),
+            _snap("marines", "defender", MARINES, position=(5, 4)),
+            _snap("gants", "defender", GANTS, position=(9, 4), models=20),
+            phase="fight",
+        )
+        action = HeuristicStrategy().choose_action(state)
+        assert action.target_unit_id == "marines"
+
+    def test_picks_the_softer_of_two_engaged_targets(self) -> None:
+        # Both in reach: choppas expect far more damage into T3/Sv5+ gants
+        # than into T4/Sv3+ marines, and 20 gants leave headroom for the cap.
+        state = _state(
+            _snap("boyz", "attacker", ORKS, position=(4, 4)),
+            _snap("marines", "defender", MARINES, position=(4, 3)),
+            _snap("gants", "defender", GANTS, position=(4, 5), models=20),
+            phase="fight",
+        )
+        action = HeuristicStrategy().choose_action(state)
+        assert action.target_unit_id == "gants"
+
+    def test_greedy_pick_orders_its_own_fights_deadliest_first(self) -> None:
+        # Two eligible fighters in separate combats: the pick with the higher
+        # capped expected damage goes first — 10 Boyz into gants beats 5
+        # Marines into gants, whatever the order they appear in.
+        state = _state(
+            _snap("marines", "attacker", MARINES, position=(2, 2)),
+            _snap("boyz", "attacker", ORKS, position=(6, 6)),
+            _snap("gants_a", "defender", GANTS, position=(2, 3), models=20),
+            _snap("gants_b", "defender", GANTS, position=(6, 7), models=20),
+            phase="fight",
+        )
+        action = HeuristicStrategy().choose_action(state)
+        assert action.attacker_unit_id == "boyz"
+
+    def test_units_that_already_fought_are_skipped(self) -> None:
+        state = _state(
+            _snap("boyz", "attacker", ORKS, position=(4, 4), has_fought=True),
+            _snap("marines", "attacker", MARINES, position=(6, 4)),
+            _snap("gants", "defender", GANTS, position=(5, 4), models=20),
+            phase="fight",
+        )
+        action = HeuristicStrategy().choose_action(state)
+        assert action.attacker_unit_id == "marines"
+
+    def test_fight_phase_scores_by_the_asked_side(self) -> None:
+        # In a fight phase the engine asks each side in turn; eligibility is
+        # read from active_side, not hardcoded to the attacker.
+        state = _state(
+            _snap("boyz", "attacker", ORKS, position=(4, 4)),
+            _snap("marines", "defender", MARINES, position=(5, 4)),
+            active_side="defender",
+            phase="fight",
+        )
+        action = HeuristicStrategy().choose_action(state)
+        assert action == Action("fight", "marines", "close_combat_weapon", "boyz")
+
+
+class TestFightEndToEnd:
+    def test_heuristic_defender_fights_back_through_the_engine(self) -> None:
+        """A hand-built two-combat fight turn: the scripted player fights,
+        and the heuristic opponent answers by itself — deadliest fight first,
+        counting only its survivors."""
+        from wh40k_tutorial.core.scenario import (
+            Scenario,
+            ScenarioSide,
+            ScenarioTurn,
+            ScenarioUnit,
+        )
+
+        scenario = Scenario(
+            scenario_id="fight_ai_test",
+            title="t",
+            teaches="x.",
+            intro="i",
+            player_side="attacker",
+            attacker=ScenarioSide(
+                "attacker", "orks", (ScenarioUnit("boyz", ORKS, (4, 4), 10),)
+            ),
+            defender=ScenarioSide(
+                "defender",
+                "space_marines",
+                (ScenarioUnit("marines", MARINES, (5, 4), 5),),
+            ),
+            turns=(ScenarioTurn("fight", "attacker"),),
+            outro="o",
+            opponent_strategy="heuristic",
+        )
+        events: list[VolleyEvent] = []
+        run_scenario(
+            scenario,
+            {
+                "attacker": ScriptedStrategy(
+                    [Action("fight", "boyz", "choppa", "marines")]
+                ),
+                "defender": HeuristicStrategy(),
+            },
+            rng=random.Random(20),
+            on_volley=events.append,
+        )
+        boyz_swing, marine_answer = events
+        assert marine_answer.action == Action(
+            "fight", "marines", "close_combat_weapon", "boyz"
+        )
+        assert (
+            marine_answer.result.attack.attacker_models
+            == boyz_swing.result.models_remaining
+        )

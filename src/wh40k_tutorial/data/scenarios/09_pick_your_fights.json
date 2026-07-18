@@ -1,0 +1,32 @@
+{
+  "id": "09_pick_your_fights",
+  "title": "Pick Your Fights",
+  "teaches": "the fight-phase ordering decision: the fight you resolve first decides which enemy swings at full strength.",
+  "intro": "Two brawls, one battlefield. On the left, your first mob of Boyz is locked with Necron Immortals — two attacks each, hitting on 3s: twenty dice waiting to fall on you. On the right, your second mob has pinned Necron Warriors — one attack each, hitting on 4s: a nuisance, not a threat. Here is the new part: when several combats share a fight phase, the players take turns choosing WHICH fight resolves next — and this opponent always picks its deadliest option. You choose first. Remember what First Blood taught you: dead models make no attacks. You will not wipe the Immortals — they are tough — but you do not need to. Every Immortal you drop before their turn is two dice they never roll. Which fight do you resolve first?",
+  "player_side": "attacker",
+  "opponent_strategy": "heuristic",
+  "sides": {
+    "attacker": {
+      "faction": "orks",
+      "units": [
+        { "id": "boyz_left", "datasheet": "boyz", "position": [3, 3], "models": 10 },
+        { "id": "boyz_right", "datasheet": "boyz", "position": [8, 5], "models": 10 }
+      ]
+    },
+    "defender": {
+      "faction": "necrons",
+      "units": [
+        { "id": "immortals_1", "datasheet": "immortals", "position": [4, 3], "models": 10 },
+        { "id": "warriors_1", "datasheet": "necron_warriors", "position": [9, 5], "models": 10 }
+      ]
+    }
+  },
+  "turns": [
+    {
+      "phase": "fight",
+      "active_side": "attacker",
+      "narrate_before": "Choppas up on both flanks. You pick the first fight — then the enemy picks, then you, then them, until every engaged unit has fought. Whichever enemy you leave waiting fights at whatever strength it still has when its moment comes."
+    }
+  ],
+  "outro": "That was the ordering decision, and it is the whole art of the fight phase. Every engaged unit was always going to fight — you never chose WHETHER, only WHEN. But when is everything: the enemy you struck first answered with survivors, and the fight you kept waiting happened on your schedule, not theirs. Notice the opponent running the same arithmetic at you — every time it picked, it resolved its deadliest available fight first. Replay this scenario with the same seed and open with the OTHER fight: count the dice in the Immortals' ATTACKS line that time. The difference is what your first pick bought. When charges arrive in a later update, this decision sharpens further — charging units fight before everything else."
+}

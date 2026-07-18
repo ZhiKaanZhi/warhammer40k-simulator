@@ -136,7 +136,7 @@ class TestValidScenario:
 
 
 class TestPackagedScenarios:
-    def test_all_eight_scenarios_are_listed(self) -> None:
+    def test_all_nine_scenarios_are_listed(self) -> None:
         assert [s.scenario_id for s in available_scenarios()] == [
             "01_first_shots",
             "02_tougher_targets",
@@ -146,7 +146,22 @@ class TestPackagedScenarios:
             "06_return_fire",
             "07_devastating_wounds",
             "08_first_blood",
+            "09_pick_your_fights",
         ]
+
+    def test_pick_your_fights_is_two_disjoint_combats_vs_the_ai(self) -> None:
+        scenario = load_scenario_by_id("09_pick_your_fights")
+        assert scenario.opponent_strategy == "heuristic"
+        assert len(scenario.turns) == 1
+        assert scenario.turns[0].phase == "fight"
+        assert scenario.turns[0].actions == ()  # the AI picks its own fights
+        left, right = scenario.attacker.units
+        imm, warr = scenario.defender.units
+        # Two separate combats: each mob engages exactly one enemy unit.
+        assert in_engagement_range(left.position, imm.position)
+        assert in_engagement_range(right.position, warr.position)
+        assert not in_engagement_range(left.position, warr.position)
+        assert not in_engagement_range(right.position, imm.position)
 
     def test_first_blood_is_the_first_fight_scenario(self) -> None:
         scenario = load_scenario_by_id("08_first_blood")

@@ -328,7 +328,7 @@ class TestHumanStrategyFights:
         )
         action, output = _choose(state, input_text="")
         assert action == Action("fight", "m1", "close_combat_weapon", "g1")
-        assert "Unit to fight with: Intercessor Squad" in output
+        assert "Unit to fight with: Intercessor Squad (5 models) — fighting Termagants" in output
         assert "Melee weapon: Close Combat Weapon" in output
         assert "Target: Termagants" in output
         assert "Your choice" not in output
@@ -344,4 +344,19 @@ class TestHumanStrategyFights:
         action, output = _choose(state, input_text="2\n")
         assert action == Action("fight", "m1", "close_combat_weapon", "near_b")
         assert "Pick a target:" in output
-        assert output.count("Termagants") == 2  # the two engaged units, not the far one
+        # The target menu offers the two engaged units, not the far one; the
+        # fighter announce line also names both, hence four mentions total.
+        assert output.count("Termagants") == 4
+
+    def test_fight_menu_names_each_units_opponent(self) -> None:
+        """Two identical mobs are only tellable apart by WHO they are fighting."""
+        state = _state(
+            _snap("left", "attacker", MARINES, position=(2, 2)),
+            _snap("right", "attacker", MARINES, position=(6, 6)),
+            _snap("g_left", "defender", GANTS, position=(2, 3)),
+            _snap("g_right", "defender", GANTS, position=(6, 7)),
+            phase="fight",
+        )
+        action, output = _choose(state, input_text="2\n")
+        assert action.attacker_unit_id == "right"
+        assert "— fighting Termagants" in output

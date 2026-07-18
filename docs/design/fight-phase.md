@@ -101,7 +101,8 @@ the whole unit in reach, so every model fights.
 1. ✅ **Scenario 08 shipped** — `08_first_blood`: the player's Ork Boyz (choppas: A3 WS3+ S4 AP-1 —
    the faction built for this) against Intercessors, one fight turn, player picks first. Demo seed 20:
    30 Ork dice slay 2 Marines (+1 wounded), and the 3 survivors answer with 9 dice instead of 15.
-2. A later scenario can teach the *ordering decision itself* (two combats, the player chooses which
-   fight happens first).
+2. ✅ **The ordering scenario shipped** — `09_pick_your_fights`: two Boyz mobs vs Immortals and
+   Warriors, one free pick each side, the heuristic AI interleaving. Fight menus now name each unit's
+   opponent ("Boyz — fighting Immortals"), which the scenario exposed as necessary. Demo seed 15.
 3. ✅ **Heuristic melee shipped** (PR #19). Next: movement/charges — which unlock Pile In, Overrun,
    and Fights First.

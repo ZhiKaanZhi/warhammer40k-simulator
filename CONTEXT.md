@@ -40,8 +40,16 @@ _Avoid_: armour mod, save modifier.
 An alternative saving throw that ignores AP. The defender uses whichever is better — the AP-modified armour save or the invulnerable save.
 _Avoid_: invuln (informal only), ward save.
 
+**Grid scale / distance**:
+One grid square is 2" (ADR 0007). The distance between two squares is the Chebyshev distance — the number of king's moves, diagonals included — times the scale; converting an inches-long reach into squares rounds DOWN (`reach_squares`), so quantization may shave a weapon's reach but never extends it ("honest ranges"). `core.scenario` owns the scale, the metric and both conversions.
+_Avoid_: tiles, cells, Manhattan/Euclidean distance.
+
+**In range**:
+A target within a weapon's Range: Chebyshev distance ≤ `reach_squares(weapon.range)` (`core.scenario.in_weapon_range`, the single definition). A shooting target must be in range and unengaged, and the shooter must itself be unengaged (04.02, 10.04); the loader rejects out-of-range scripted shots at load time, the engine enforces all three on live state.
+_Avoid_: within reach, close enough.
+
 **Engagement range / engaged**:
-The zone in which melee happens: in the full game, within 2" horizontally (5" vertically) of a model. While opposing models sit inside each other's engagement range, they — and their units — are engaged. On our pre-positioned grid, adjacency (one square of separation or less, diagonals included) is the convention for engagement (`core.scenario.in_engagement_range`, the single definition) until movement fixes a squares-to-inches scale.
+The zone in which melee happens: within 2" horizontally (5" vertically in the full game — meaningless on a flat grid) of a model. While opposing models sit inside each other's engagement range, they — and their units — are engaged. On our grid, 2" is exactly one square (ADR 0007), so engaged = adjacent, diagonals included (`core.scenario.in_engagement_range`, the single definition) — a measurement, not a convention.
 _Avoid_: melee range, base contact (a different, tighter thing).
 
 **Fight phase**:

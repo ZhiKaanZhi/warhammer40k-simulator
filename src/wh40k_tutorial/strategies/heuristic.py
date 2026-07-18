@@ -66,7 +66,7 @@ class HeuristicStrategy:
             (shooter, weapon, target)
             for shooter in state.eligible_shooters()
             for weapon in shooter.ranged_weapons
-            for target in state.surviving_enemies()
+            for target in state.shootable_targets(shooter, weapon)
         )
         return self._best(candidates, kind="shoot")
 

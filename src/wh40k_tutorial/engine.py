@@ -21,15 +21,17 @@ Boundaries (see ADR 0005):
 - Presentation observes through optional callbacks receiving frozen
   `VolleyEvent`s; the engine itself never prints.
 
-Deliberate simplifications: weapon range is not enforced (scenarios are
-pre-positioned in range; range checks arrive with movement, which also fixes
-the grid-squares-to-inches convention) — engagement, by contrast, IS enforced
-in the fight phase, because it is that phase's core mechanic: adjacency on
-the grid stands in for the 2" engagement range (`core.scenario
-.in_engagement_range`). One activation resolves one weapon profile. A unit's
-shootable weapons are its effective loadout — the
-scenario's per-unit loadout override if one is given, else the datasheet's
-default_loadout (see `core.models.shootable_weapons`).
+Distances follow ADR 0007 (1 square = 2", Chebyshev), and the shooting rules
+they enable are enforced here on live state: a shot's target must be within
+the weapon's range and unengaged, and the shooter must be unengaged (04.02,
+10.04 — no [CLOSE-QUARTERS] weapons in our data). Engagement is the same
+single definition the fight phase has always enforced
+(`core.scenario.in_engagement_range` — adjacency, which under ADR 0007 IS
+the 2" engagement range exactly). Remaining deliberate simplification: one
+activation resolves one weapon profile. A unit's shootable weapons are its
+effective loadout — the scenario's per-unit loadout override if one is
+given, else the datasheet's default_loadout (see
+`core.models.shootable_weapons`).
 """
 
 from __future__ import annotations
@@ -43,7 +45,9 @@ from wh40k_tutorial.core.models import UnitDatasheet, Weapon, melee_weapons, sho
 from wh40k_tutorial.core.scenario import (
     Scenario,
     ScenarioTurn,
+    distance_inches,
     in_engagement_range,
+    in_weapon_range,
     opposing_side,
 )
 from wh40k_tutorial.strategies.base import Action, GameState, Strategy, UnitSnapshot
@@ -272,6 +276,18 @@ def _run_fight_phase(
         picker = opposing_side(picker)
 
 
+def _is_engaged(unit: UnitRuntime, state: BattleState) -> bool:
+    """True when any surviving enemy unit is within engagement range of ``unit``.
+
+    Live-state engagement: destroyed units engage nothing, so a fight turn
+    that wipes a combat frees its participants for later shooting turns.
+    """
+    return any(
+        in_engagement_range(unit.position, enemy.position)
+        for enemy in state.survivors(opposing_side(unit.side))
+    )
+
+
 def _acting_unit(action: Action, state: BattleState, verb: str) -> UnitRuntime:
     """The unit an action activates: must exist, belong to the acting side, and live."""
     attacker = state.units.get(action.attacker_unit_id)
@@ -347,6 +363,25 @@ def _validate_shoot(
             f"{', '.join(sorted(carried))}"
         )
     target = _enemy_unit(action.target_unit_id, state, "shooting attacks")
+    if _is_engaged(attacker, state):
+        raise EngineError(
+            f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) is engaged "
+            f"and cannot shoot (rule 10.04 — an engaged unit needs a "
+            f"[CLOSE-QUARTERS] weapon, and none of this project's weapons is one)"
+        )
+    if _is_engaged(target, state):
+        raise EngineError(
+            f"{target.datasheet.display_name} ({target.unit_id!r}) is engaged — "
+            f"shooting cannot target an engaged unit (rule 04.02)"
+        )
+    if not in_weapon_range(attacker.position, target.position, weapon):
+        raise EngineError(
+            f"{target.datasheet.display_name} ({target.unit_id!r}) is "
+            f"{distance_inches(attacker.position, target.position)}\" from "
+            f"{attacker.datasheet.display_name} ({attacker.unit_id!r}) — beyond "
+            f"{weapon.display_name}'s {weapon.range}\" range (rule 04.02; "
+            f"1 square = 2\", ADR 0007)"
+        )
     return attacker, weapon, target
 
 

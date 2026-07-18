@@ -44,8 +44,13 @@ class HumanStrategy:
 
     def _choose_shot(self, state: GameState) -> Action:
         shooter = _pick("unit to shoot with", state.eligible_shooters(), _describe_unit)
-        weapon = _pick("weapon", shooter.ranged_weapons, _describe_weapon)
-        target = _pick("target", state.surviving_enemies(), _describe_unit)
+        # Only weapons that have a legal target (in range, unengaged — 04.02);
+        # eligibility guarantees at least one, so the menu is never empty.
+        weapons = tuple(
+            w for w in shooter.ranged_weapons if state.shootable_targets(shooter, w)
+        )
+        weapon = _pick("weapon", weapons, _describe_weapon)
+        target = _pick("target", state.shootable_targets(shooter, weapon), _describe_unit)
         return Action(
             kind="shoot",
             attacker_unit_id=shooter.unit_id,

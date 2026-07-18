@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from wh40k_tutorial.core.models import UnitDatasheet, Weapon, melee_weapons, shootable_weapons
-from wh40k_tutorial.core.scenario import in_engagement_range, opposing_side
+from wh40k_tutorial.core.scenario import in_engagement_range, in_weapon_range, opposing_side
 
 
 @dataclass(frozen=True)
@@ -86,14 +86,38 @@ class GameState:
     def eligible_shooters(self) -> tuple[UnitSnapshot, ...]:
         """Active-side units that can still shoot this phase.
 
-        Alive, armed with at least one ranged weapon, and not yet activated.
-        This is the single definition of shooting eligibility — the engine's
-        turn loop and both strategies rely on it agreeing with itself.
+        Alive, not yet activated, unengaged (10.04: an engaged unit needs a
+        [CLOSE-QUARTERS] weapon to shoot, and no unit in our data carries
+        one), and able to make at least one legal shot — some carried ranged
+        weapon has some legal target (in range and unengaged, 04.02). This is
+        the single definition of shooting eligibility — the engine's turn
+        loop and both strategies rely on it agreeing with itself.
         """
         return tuple(
             u
             for u in self.units_on(self.active_side)
-            if not u.destroyed and not u.has_shot and u.ranged_weapons
+            if not u.destroyed
+            and not u.has_shot
+            and not self.engaged_enemies(u)
+            and any(self.shootable_targets(u, w) for w in u.ranged_weapons)
+        )
+
+    def shootable_targets(
+        self, shooter: UnitSnapshot, weapon: Weapon
+    ) -> tuple[UnitSnapshot, ...]:
+        """Surviving enemy units ``shooter`` may target with ``weapon``.
+
+        04.02: a shooting target must be within the weapon's range and
+        unengaged (visibility is vacuous — no terrain). The single definition
+        of legal shooting targets — the engine's validation and the
+        strategies' target menus rely on it agreeing with itself.
+        """
+        return tuple(
+            u
+            for u in self.units_on(opposing_side(shooter.side))
+            if not u.destroyed
+            and in_weapon_range(shooter.position, u.position, weapon)
+            and not self.engaged_enemies(u)
         )
 
     def surviving_enemies(self) -> tuple[UnitSnapshot, ...]:

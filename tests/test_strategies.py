@@ -33,12 +33,12 @@ MARINES = load_faction_by_name("space_marines")["intercessor_squad"]
 GANTS = load_faction_by_name("tyranids")["termagants"]
 
 
-def _weapon(name: str, *, type_: str = "ranged") -> Weapon:
+def _weapon(name: str, *, type_: str = "ranged", range_: int | None = None) -> Weapon:
     return Weapon(
         name=name,
         display_name=name.replace("_", " ").title(),
         type=type_,
-        range=0 if type_ == "melee" else 12,
+        range=(0 if type_ == "melee" else 12) if range_ is None else range_,
         attacks=1,
         skill=4,
         strength=4,
@@ -67,12 +67,17 @@ def _snap(
     sheet: UnitDatasheet,
     *,
     models: int | None = None,
-    position: tuple[int, int] = (0, 0),
+    position: tuple[int, int] | None = None,
     has_shot: bool = False,
     has_fought: bool = False,
     loadout: tuple[str, ...] = (),
 ) -> UnitSnapshot:
     resolved_models = sheet.default_model_count if models is None else models
+    # Distances matter now (ADR 0007): unless a test places a unit itself,
+    # attackers stand at (2, 4) and defenders at (7, 4) — 5 squares = 10"
+    # apart, inside the fixture's 12" weapons' range and safely unengaged.
+    if position is None:
+        position = (2, 4) if side == "attacker" else (7, 4)
     return UnitSnapshot(
         unit_id=unit_id,
         side=side,
@@ -108,6 +113,40 @@ class TestGameState:
             _snap("d1", "defender", GANTS),
         )
         assert [u.unit_id for u in state.eligible_shooters()] == ["a1"]
+
+    def test_eligible_shooters_excludes_the_engaged(self) -> None:
+        """10.04: an engaged unit cannot shoot — it never reaches the menu."""
+        state = _state(
+            _snap("a_free", "attacker", MARINES, position=(2, 4)),
+            _snap("a_stuck", "attacker", MARINES, position=(6, 4)),
+            _snap("d_close", "defender", GANTS, position=(7, 4)),   # engages a_stuck
+            _snap("d_open", "defender", GANTS, position=(2, 0)),    # a_free's target
+        )
+        assert [u.unit_id for u in state.eligible_shooters()] == ["a_free"]
+
+    def test_eligible_shooters_need_a_target_in_range(self) -> None:
+        """A shooter with nothing legal to shoot is skipped, not deadlocked."""
+        gunners = _sheet("gunners", _weapon("test_gun"))  # 12" = 6 squares
+        state = _state(
+            _snap("a1", "attacker", gunners, position=(0, 0)),
+            _snap("d1", "defender", GANTS, position=(7, 4)),  # 7 squares = 14" > 12"
+        )
+        assert state.eligible_shooters() == ()
+
+    def test_shootable_targets_filter_range_and_engagement(self) -> None:
+        """04.02: within the weapon's range and unengaged — nothing else."""
+        gunners = _sheet("gunners", _weapon("test_gun"))  # 12" = 6 squares
+        state = _state(
+            _snap("a1", "attacker", gunners, position=(2, 4)),
+            _snap("a2", "attacker", MARINES, position=(6, 1)),
+            _snap("d_near", "defender", GANTS, position=(6, 4)),     # 4 squares: legal
+            _snap("d_far", "defender", GANTS, position=(11, 4)),     # 9 squares = 18" > 12"
+            _snap("d_stuck", "defender", GANTS, position=(6, 0)),    # engaged with a2
+            _snap("d_dead", "defender", GANTS, position=(4, 0), models=0),
+        )
+        shooter = state.unit("a1")
+        weapon = shooter.ranged_weapons[0]
+        assert [u.unit_id for u in state.shootable_targets(shooter, weapon)] == ["d_near"]
 
     def test_surviving_enemies_excludes_destroyed(self) -> None:
         state = _state(
@@ -233,6 +272,21 @@ class TestHumanStrategy:
         assert "2. Kitted Squad (5 models)" in output
         assert "Pick a weapon:" in output
         assert "Pick a target:" in output
+
+    def test_weapon_menu_drops_weapons_with_no_legal_target(self) -> None:
+        """A gun whose every target is out of reach is not offered (04.02):
+        the 4" pistol cannot touch the target 5 squares (10") away, so only
+        the 12" rifle appears — announced, not prompted."""
+        rifle, pistol = _weapon("rifle"), _weapon("pistol", range_=4)
+        squad = _sheet("kitted_squad", rifle, pistol, loadout=("rifle", "pistol"))
+        state = _state(
+            _snap("a1", "attacker", squad, position=(2, 4)),
+            _snap("d1", "defender", GANTS, position=(7, 4)),
+        )
+        action, output = _choose(state, input_text="")
+        assert action == Action("shoot", "a1", "rifle", "d1")
+        assert "Weapon: Rifle" in output
+        assert "Pistol" not in output
 
     def test_out_of_range_pick_is_reprompted(self) -> None:
         state = _state(

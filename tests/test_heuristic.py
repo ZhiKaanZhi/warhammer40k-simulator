@@ -34,9 +34,14 @@ def _snap(
     has_shot: bool = False,
     has_fought: bool = False,
     loadout: tuple[str, ...] = (),
-    position: tuple[int, int] = (0, 0),
+    position: tuple[int, int] | None = None,
 ) -> UnitSnapshot:
     resolved = sheet.default_model_count if models is None else models
+    # Distances matter now (ADR 0007): unless a test places a unit itself,
+    # attackers stand at (2, 4) and defenders at (8, 4) — 6 squares = 12"
+    # apart, inside every fixture weapon's range and safely unengaged.
+    if position is None:
+        position = (2, 4) if side == "attacker" else (8, 4)
     return UnitSnapshot(
         unit_id=unit_id,
         side=side,
@@ -137,6 +142,19 @@ class TestWeaponAndShooterChoice:
         )
         action = HeuristicStrategy().choose_action(state)
         assert action.attacker_unit_id == "immortals_1"
+
+    def test_out_of_range_targets_are_not_candidates(self) -> None:
+        """04.02 via ADR 0007: a Shoota (18" = 9 squares) cannot reach 11.
+
+        The far swarm is the higher-EV target (more wounds left to cap
+        against) — but it is out of reach, so the near handful gets shot."""
+        state = _state(
+            _snap("boyz", "attacker", ORKS, position=(0, 0)),
+            _snap("near_few", "defender", GANTS, position=(5, 4), models=5),
+            _snap("far_swarm", "defender", GANTS, position=(11, 7), models=20),
+        )
+        action = HeuristicStrategy().choose_action(state)
+        assert action.target_unit_id == "near_few"
 
 
 class TestEndToEnd:

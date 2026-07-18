@@ -17,10 +17,10 @@ over the shared `_resolve_attack_sequence` — the hit roll reads WS instead of 
 (from `ShootingResult`) to keep the name honest now that two phases produce it.
 
 Engagement gets one project-wide definition, `core.scenario.in_engagement_range`: one grid square of
-separation or less, diagonals included — the pre-positioning convention standing in for the
-11th-edition 2" engagement range until movement fixes a squares-to-inches scale. The loader (a fight
+separation or less, diagonals included — which under [ADR 0007](0007-grid-scale-chebyshev-distances.md)
+(1 square = 2", Chebyshev) is exactly the 11th-edition 2" engagement range, measured rather than assumed. The loader (a fight
 turn needs an engaged starting pair), the engine (fight validation and eligibility), and the strategies
-(target menus) all defer to it. Unlike weapon range — still an unenforced pre-positioning promise —
+(target menus) all defer to it. Like weapon range since ADR 0007 —
 engagement **is enforced**, because it is not a distance nicety but the mechanic the whole phase runs on.
 
 ## Considered Options

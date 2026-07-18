@@ -15,13 +15,18 @@ import pytest
 from wh40k_tutorial.core.scenario import (
     BATTLEFIELD_HEIGHT,
     BATTLEFIELD_WIDTH,
+    INCHES_PER_SQUARE,
     Scenario,
     ScenarioDataError,
     available_scenarios,
+    chebyshev_squares,
+    distance_inches,
     in_engagement_range,
+    in_weapon_range,
     load_scenario,
     load_scenario_by_id,
     opposing_side,
+    reach_squares,
 )
 
 # ---------------------------------------------------------------------------
@@ -375,6 +380,28 @@ class TestMalformedScriptedActions:
         with pytest.raises(ScenarioDataError, match="hive_tyrant_1"):
             _load(tmp_path, self._with_action(action))
 
+    def test_scripted_shot_beyond_weapon_range(self, tmp_path: Path) -> None:
+        """Positions are static, so range is checked at load time (ADR 0007):
+        a Fleshborer (18" = 9 squares) cannot script a shot across 11 squares."""
+        data = _base()
+        data["sides"]["attacker"]["units"][0]["position"] = [0, 0]
+        data["sides"]["defender"]["units"][0]["position"] = [11, 7]
+        data["turns"].append(
+            {
+                "phase": "shooting",
+                "active_side": "defender",
+                "actions": [
+                    {
+                        "attacker": "termagants_1",
+                        "weapon": "fleshborer",
+                        "target": "marines_1",
+                    }
+                ],
+            }
+        )
+        with pytest.raises(ScenarioDataError, match=r'22" .*beyond.*18" range'):
+            _load(tmp_path, data)
+
 
 # ---------------------------------------------------------------------------
 # Per-scenario loadout overrides
@@ -518,6 +545,57 @@ def _fight_base() -> dict:
     data["sides"]["defender"]["units"][0]["position"] = [5, 4]
     data["turns"] = [{"phase": "fight", "active_side": "attacker"}]
     return data
+
+
+class TestDistanceModel:
+    """ADR 0007: 1 square = 2", distance is Chebyshev x scale, reach floors."""
+
+    @pytest.mark.parametrize(
+        ("a", "b", "squares"),
+        [
+            ((0, 0), (0, 0), 0),
+            ((3, 4), (9, 4), 6),    # scenario 01's shot: 6 squares = 12"
+            ((2, 4), (9, 2), 7),    # diagonal-ish: the larger axis rules
+            ((0, 0), (11, 7), 11),  # the grid's corner-to-corner maximum
+            ((4, 4), (5, 5), 1),    # diagonal neighbour is ONE king's move
+        ],
+    )
+    def test_chebyshev_and_inches(
+        self, a: tuple[int, int], b: tuple[int, int], squares: int
+    ) -> None:
+        assert chebyshev_squares(a, b) == squares
+        assert chebyshev_squares(b, a) == squares  # symmetric
+        assert distance_inches(a, b) == squares * INCHES_PER_SQUARE
+
+    @pytest.mark.parametrize(
+        ("inches", "squares"),
+        [
+            (2, 1),    # engagement range: adjacency
+            (3, 1),    # floors — an odd reach never gains a square
+            (9, 4),    # a 9" pistol reaches 8", not 10"
+            (12, 6),
+            (18, 9),   # shoota / fleshborer
+            (24, 12),  # bolt rifle covers the whole 12x8 grid
+            (30, 15),
+        ],
+    )
+    def test_reach_floors(self, inches: int, squares: int) -> None:
+        assert reach_squares(inches) == squares
+
+    def test_weapon_range_boundary(self) -> None:
+        sheet = load_scenario_by_id("01_first_shots").defender.units[0].datasheet
+        fleshborer = next(w for w in sheet.weapons if w.name == "fleshborer")  # 18"
+        assert in_weapon_range((0, 4), (9, 4), fleshborer)       # 9 squares = 18": exactly in
+        assert not in_weapon_range((0, 4), (10, 4), fleshborer)  # 10 squares = 20": out
+
+    def test_engagement_is_the_two_inch_reach(self) -> None:
+        """Adjacency IS the 2" engagement range — the theorem ADR 0007 buys."""
+        for dx in range(-3, 4):
+            for dy in range(-3, 4):
+                a, b = (5, 4), (5 + dx, 4 + dy)
+                assert in_engagement_range(a, b) == (
+                    distance_inches(a, b) <= 2
+                )
 
 
 class TestEngagementGeometry:

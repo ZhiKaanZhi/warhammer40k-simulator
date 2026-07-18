@@ -9,7 +9,7 @@ Build phase 5 introduces the first mutable state in the project. We decided to f
 - **Presentation observes via optional callbacks** (`on_turn_start`, `on_volley`) that receive frozen records — a `VolleyEvent` carries the full `ShootingResult`. The engine never prints; the CLI/UI layer formats.
 - **Scripted opponents replay data, never improvise.** A scenario turn entry may carry an optional `actions` list, validated eagerly by the scenario loader against the datasheets on the board. `ScriptedStrategy` replays them in order and **raises when the script runs dry** rather than inventing a move, so an under-scripted scenario fails in testing instead of silently drifting from its lesson.
 
-Two v1 simplifications are deliberate and documented in `engine.py`: weapon **range is not enforced** (scenarios are pre-positioned in range; enforcement arrives with movement, which must also fix the grid-squares-to-inches convention), and **one activation fires one weapon profile** (no current unit carries two ranged guns; multi-weapon activations are an engine-loop change, not a pipeline change).
+Two v1 simplifications were deliberate and documented in `engine.py`: weapon **range is not enforced** (scenarios are pre-positioned in range), and **one activation fires one weapon profile** (no current unit carries two ranged guns; multi-weapon activations are an engine-loop change, not a pipeline change). *Amended by [ADR 0007](0007-grid-scale-chebyshev-distances.md) (2026-07-19): the grid gained a declared scale and weapon range — plus the engaged-shooting rules — are now enforced; the one-weapon-per-activation simplification stands.*
 
 ## Considered Options
 

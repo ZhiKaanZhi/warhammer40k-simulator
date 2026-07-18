@@ -19,6 +19,7 @@ from pathlib import Path
 from wh40k_tutorial.core.models import (
     FactionDataError,
     UnitDatasheet,
+    Weapon,
     load_faction_by_name,
     melee_weapons,
     shootable_weapons,
@@ -35,12 +36,42 @@ SIDES = ("attacker", "defender")
 # fight phase is the first v2 mechanic (see docs/design/fight-phase.md).
 _SUPPORTED_PHASES = ("shooting", "fight")
 
-# Engagement, translated to our grid: one square of separation or less —
-# horizontally, vertically or diagonally — puts two units in each other's
-# engagement range (the 11th-edition distance is 2" horizontally; scenarios
-# are pre-positioned, so adjacency IS the convention until movement fixes a
-# squares-to-inches scale, exactly like weapon range today).
-ENGAGEMENT_RANGE_SQUARES = 1
+# The grid's scale (ADR 0007): one square is 2 inches, and the distance
+# between two squares is the Chebyshev distance — the number of king's moves —
+# times the scale. Chosen so that adjacency (Chebyshev distance 1, diagonals
+# count) is EXACTLY the 11th-edition 2" engagement range (03.04): the fight
+# phase's long-standing adjacency convention stops being an approximation and
+# becomes the theorem.
+INCHES_PER_SQUARE = 2
+
+# The 11th-edition engagement range: 2" horizontally (03.04; the 5" vertical
+# arm is meaningless on a flat grid). Models mutually inside it — and their
+# units — are engaged.
+ENGAGEMENT_RANGE_INCHES = 2
+
+
+def chebyshev_squares(a: tuple[int, int], b: tuple[int, int]) -> int:
+    """The distance between two grid positions, in squares (king's moves)."""
+    return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
+
+
+def distance_inches(a: tuple[int, int], b: tuple[int, int]) -> int:
+    """The distance between two grid positions on the tabletop scale."""
+    return chebyshev_squares(a, b) * INCHES_PER_SQUARE
+
+
+def reach_squares(inches: int) -> int:
+    """How many squares an ``inches``-long reach covers — rounded DOWN.
+
+    Flooring keeps ranges honest: a 9" reach covers 4 squares (8"), never a
+    5th (10") the tabletop weapon could not touch. Applied to every distance
+    the rules express in inches (weapon range, engagement range).
+    """
+    return inches // INCHES_PER_SQUARE
+
+
+# Engagement in squares: reach_squares(2") = 1 — adjacency, diagonals count.
+ENGAGEMENT_RANGE_SQUARES = reach_squares(ENGAGEMENT_RANGE_INCHES)
 
 
 def in_engagement_range(a: tuple[int, int], b: tuple[int, int]) -> bool:
@@ -51,7 +82,19 @@ def in_engagement_range(a: tuple[int, int], b: tuple[int, int]) -> bool:
     fight-turn check, the engine's eligibility and validation, and the
     strategies' target menus all defer here.
     """
-    return max(abs(a[0] - b[0]), abs(a[1] - b[1])) <= ENGAGEMENT_RANGE_SQUARES
+    return chebyshev_squares(a, b) <= ENGAGEMENT_RANGE_SQUARES
+
+
+def in_weapon_range(
+    a: tuple[int, int], b: tuple[int, int], weapon: Weapon
+) -> bool:
+    """True when a model at ``a`` can reach a target at ``b`` with ``weapon``.
+
+    04.02: a shooting target must be within range of the weapon. The single
+    definition of "in range" — the loader's script validation, the engine's
+    shot validation, and the strategies' target menus all defer here.
+    """
+    return chebyshev_squares(a, b) <= reach_squares(weapon.range)
 
 # Who plays the non-player side: "scripted" replays the scenario's action
 # lists; "heuristic" is the expected-damage AI (strategies/heuristic.py).
@@ -357,10 +400,26 @@ def _parse_action(
             f"carrying {weapon.display_name} in this scenario — its loadout is "
             f"{', '.join(sorted(carried))}"
         )
-    if all(u.unit_id != target_id for u in enemies.units):
+    target = next((u for u in enemies.units if u.unit_id == target_id), None)
+    if target is None:
         raise ScenarioDataError(
             f"{ctx}: target {target_id!r} is not a unit on the {enemies.name} side"
         )
+    # Positions never change (no movement yet), so weapon range is a static
+    # fact the loader can check outright (04.02 via ADR 0007): a scripted
+    # shot at an out-of-reach target is an authoring bug that should fail
+    # here, not mid-battle. Engagement, by contrast, is RUNTIME state — a
+    # fight turn can destroy the engaging unit and free a legal shot — so
+    # the engaged-shooting rules (10.04, 04.02) are the engine's to enforce,
+    # on live positions and survivors.
+    if phase != "fight" and not in_weapon_range(shooter.position, target.position, weapon):
+            raise ScenarioDataError(
+                f"{ctx}: {target.datasheet.display_name} ({target_id!r}) is "
+                f"{distance_inches(shooter.position, target.position)}\" from "
+                f"{shooter.datasheet.display_name} ({attacker_id!r}) — beyond "
+                f"{weapon.display_name}'s {weapon.range}\" range "
+                f"(1 square = {INCHES_PER_SQUARE}\", ADR 0007)"
+            )
     return ScenarioAction(
         attacker_unit_id=attacker_id, weapon=weapon_key, target_unit_id=target_id
     )

@@ -296,6 +296,76 @@ class TestActionValidation:
         with pytest.raises(EngineError, match="your own"):
             self._run(Action(SHOOT, "m1", "bolt_rifle", "m2"))
 
+    def test_shot_beyond_weapon_range(self) -> None:
+        """04.02 via ADR 0007: a Fleshborer (18" = 9 squares) cannot cross 11.
+
+        m_near keeps the shooter eligible, so the engine asks — and the
+        script overreaches for m_far."""
+        scenario = _scenario(
+            (ScenarioUnit("g_shooter", GANTS, (0, 0), 10),),
+            (
+                ScenarioUnit("m_near", MARINES, (5, 4), 5),
+                ScenarioUnit("m_far", MARINES, (11, 7), 5),
+            ),
+            ONE_ATTACKER_TURN,
+        )
+        strategies = {
+            "attacker": ScriptedStrategy(
+                [Action(SHOOT, "g_shooter", "fleshborer", "m_far")]
+            ),
+            "defender": ScriptedStrategy([]),
+        }
+        with pytest.raises(EngineError, match=r'22" .*beyond.*18" range'):
+            run_scenario(scenario, strategies, rng=random.Random(0))
+
+    def test_engaged_shooter_cannot_shoot(self) -> None:
+        """10.04: an engaged unit cannot shoot (no [CLOSE-QUARTERS] weapons).
+
+        m_free is eligible, so the engine asks — and the script answers with
+        the engaged m_stuck, which the validation must reject."""
+        scenario = _scenario(
+            (
+                ScenarioUnit("m_free", MARINES, (0, 4), 5),
+                ScenarioUnit("m_stuck", MARINES, (7, 4), 5),
+            ),
+            (
+                ScenarioUnit("g_close", GANTS, (8, 4), 10),
+                ScenarioUnit("g_far", GANTS, (9, 0), 10),
+            ),
+            ONE_ATTACKER_TURN,
+        )
+        strategies = {
+            "attacker": ScriptedStrategy(
+                [Action(SHOOT, "m_stuck", "bolt_rifle", "g_far")]
+            ),
+            "defender": ScriptedStrategy([]),
+        }
+        with pytest.raises(EngineError, match="engaged and cannot shoot"):
+            run_scenario(scenario, strategies, rng=random.Random(0))
+
+    def test_shooting_cannot_target_an_engaged_unit(self) -> None:
+        """04.02: you cannot shoot into a combat — the target must be unengaged.
+
+        g_far keeps m_free eligible, so the engine asks — and the script aims
+        at g1, who is locked in with m_stuck."""
+        scenario = _scenario(
+            (
+                ScenarioUnit("m_free", MARINES, (0, 4), 5),
+                ScenarioUnit("m_stuck", MARINES, (7, 4), 5),
+            ),
+            (
+                ScenarioUnit("g1", GANTS, (8, 4), 10),
+                ScenarioUnit("g_far", GANTS, (9, 0), 10),
+            ),
+            ONE_ATTACKER_TURN,
+        )
+        strategies = {
+            "attacker": ScriptedStrategy([Action(SHOOT, "m_free", "bolt_rifle", "g1")]),
+            "defender": ScriptedStrategy([]),
+        }
+        with pytest.raises(EngineError, match="cannot target an engaged unit"):
+            run_scenario(scenario, strategies, rng=random.Random(0))
+
     def test_unknown_target(self) -> None:
         with pytest.raises(EngineError, match="'ghost'"):
             self._run(Action(SHOOT, "m1", "bolt_rifle", "ghost"))
@@ -502,9 +572,11 @@ class TestFightPhase:
             _run_fight(scenario, [Action(SHOOT, "m1", "bolt_rifle", "g1")], [])
 
     def test_fight_actions_are_not_legal_in_a_shooting_phase(self) -> None:
+        # Unengaged and in range, so the shooting phase asks the strategy —
+        # which hands back a fight action for the kind check to reject.
         scenario = _scenario(
-            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
-            (ScenarioUnit("g1", GANTS, (5, 4), 10),),
+            (ScenarioUnit("m1", MARINES, (2, 4), 5),),
+            (ScenarioUnit("g1", GANTS, (7, 4), 10),),
             ONE_ATTACKER_TURN,
         )
         with pytest.raises(EngineError, match="not legal in a shooting phase"):
@@ -519,23 +591,34 @@ class TestFightPhase:
             _run_fight(scenario, [Action(FIGHT, "m1", "bolt_rifle", "g1")], [])
 
     def test_shot_and_fought_flags_reset_between_turns(self) -> None:
-        """The same unit may shoot in a shooting turn and fight in the next
-        fight turn — the per-phase activation sets are per turn entry."""
+        """The same unit may fight in one turn and shoot in the next — the
+        per-phase activation sets are per turn entry, and having fought does
+        not spend a later shooting activation.
+
+        (Fight-THEN-shoot, because with static positions the reverse is now
+        rule-impossible: a unit unengaged enough to shoot can never become
+        engaged without movement. Here the fight wipes the engaging Termagant
+        — the single model cannot survive five Marines at this seed — which
+        frees m1 to shoot the second, distant unit next turn.)
+        """
         scenario = _scenario(
-            (ScenarioUnit("m1", MARINES, (4, 4), 5),),
-            (ScenarioUnit("g1", GANTS, (5, 4), 20),),
-            (ScenarioTurn("shooting", "attacker"), ScenarioTurn("fight", "attacker")),
+            (ScenarioUnit("m1", MARINES, (5, 4), 5),),
+            (
+                ScenarioUnit("g1", GANTS, (6, 4), 1),
+                ScenarioUnit("g2", GANTS, (9, 4), 10),
+            ),
+            (ScenarioTurn("fight", "attacker"), ScenarioTurn("shooting", "attacker")),
         )
         _, events = _run_fight(
             scenario,
             [
-                Action(SHOOT, "m1", "bolt_rifle", "g1"),
                 Action(FIGHT, "m1", MARINE_BLADE, "g1"),
+                Action(SHOOT, "m1", "bolt_rifle", "g2"),
             ],
-            [Action(FIGHT, "g1", GANT_CLAWS, "m1")],
+            [],
         )
-        assert [e.action.kind for e in events] == ["shoot", "fight", "fight"]
-        assert [e.action.attacker_unit_id for e in events] == ["m1", "m1", "g1"]
+        assert [e.action.kind for e in events] == ["fight", "shoot"]
+        assert [e.action.attacker_unit_id for e in events] == ["m1", "m1"]
 
     def test_fight_phase_ends_the_moment_a_side_is_wiped(self) -> None:
         """A single Termagant cannot survive five Marines at this seed: the

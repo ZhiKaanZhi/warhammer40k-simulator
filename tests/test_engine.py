@@ -24,6 +24,7 @@ from wh40k_tutorial.core.scenario import (
 )
 from wh40k_tutorial.engine import BattleState, EngineError, VolleyEvent, run_scenario
 from wh40k_tutorial.strategies.base import Action
+from wh40k_tutorial.strategies.heuristic import HeuristicStrategy
 from wh40k_tutorial.strategies.scripted import ScriptedStrategy, scripted_actions_for
 
 MARINES = load_faction_by_name("space_marines")["intercessor_squad"]
@@ -586,3 +587,59 @@ class TestFirstBloodScenarioMath:
         assert marine_answer.result.models_remaining == 7
         assert state.units["boyz_1"].models == 7
         assert state.units["marines_1"].models == 3
+
+
+class TestPickYourFightsScenarioMath:
+    """Scenario 09 at its demo seed: the ordering decision, both branches."""
+
+    SEED = 15
+
+    def _run(self, player_script: list[Action]) -> list[VolleyEvent]:
+        scenario = load_scenario_by_id("09_pick_your_fights")
+        events: list[VolleyEvent] = []
+        run_scenario(
+            scenario,
+            {
+                "attacker": ScriptedStrategy(player_script),
+                "defender": HeuristicStrategy(),
+            },
+            rng=random.Random(self.SEED),
+            on_volley=events.append,
+        )
+        return events
+
+    def test_right_pick_defangs_the_immortals(self) -> None:
+        events = self._run(
+            [
+                Action(FIGHT, "boyz_left", "choppa", "immortals_1"),
+                Action(FIGHT, "boyz_right", "choppa", "warriors_1"),
+            ]
+        )
+        assert [e.action.attacker_unit_id for e in events] == [
+            "boyz_left",
+            "immortals_1",  # the AI's free pick: still its deadliest option
+            "boyz_right",
+            "warriors_1",
+        ]
+        f1, f2, f3, f4 = events
+        # 4 Immortals fall first, so their answer is 12 dice, not 20...
+        assert f1.result.models_remaining == 6
+        assert f2.result.attack.total_attacks == 12
+        # ...and every enemy swing in the phase comes from survivors only.
+        assert f2.result.attack.attacker_models == f1.result.models_remaining
+        assert f4.result.attack.attacker_models == f3.result.models_remaining
+        assert f3.result.models_remaining == 4
+        assert f4.result.attack.total_attacks == 4
+
+    def test_wrong_pick_lets_the_immortals_swing_at_full_strength(self) -> None:
+        events = self._run(
+            [
+                Action(FIGHT, "boyz_right", "choppa", "warriors_1"),
+                Action(FIGHT, "boyz_left", "choppa", "immortals_1"),
+            ]
+        )
+        # The AI's free pick is the untouched Immortals: all 20 dice.
+        ai_first = events[1]
+        assert ai_first.action.attacker_unit_id == "immortals_1"
+        assert ai_first.result.attack.attacker_models == 10
+        assert ai_first.result.attack.total_attacks == 20

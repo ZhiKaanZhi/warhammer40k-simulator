@@ -54,10 +54,19 @@ class HumanStrategy:
         )
 
     def _choose_fight(self, state: GameState) -> Action:
+        def describe_fighter(unit: UnitSnapshot) -> str:
+            # Two mobs of "Boyz (10 models)" are indistinguishable on a menu;
+            # naming each unit's opponent is what makes the ordering decision
+            # legible — WHICH fight, not just which unit.
+            enemies = " and ".join(
+                e.datasheet.display_name for e in state.engaged_enemies(unit)
+            )
+            return f"{_describe_unit(unit)} — fighting {enemies}"
+
         fighter = _pick(
             "unit to fight with",
             state.eligible_fighters(state.active_side),
-            _describe_unit,
+            describe_fighter,
         )
         weapon = _pick("melee weapon", fighter.melee_weapons, _describe_weapon)
         target = _pick("target", state.engaged_enemies(fighter), _describe_unit)

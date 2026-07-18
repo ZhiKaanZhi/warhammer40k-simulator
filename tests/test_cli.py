@@ -168,6 +168,20 @@ class TestAbilityScenarioEndToEnd:
         assert "Each critical wound strikes just one model." in out
         assert "a scalpel, not an avalanche" in out   # the outro's core lesson
 
+    def test_pick_your_fights_menu_names_opponents_and_the_ai_interleaves(self) -> None:
+        result = CliRunner().invoke(
+            main, ["play", "09_pick_your_fights", "--seed", "15"], input="1\n\n\n\n\n"
+        )
+        assert result.exit_code == 0, result.output
+        out = result.output
+        # The decision is legible: identical mobs are told apart by their fight.
+        assert "Boyz (10 models) — fighting Immortals" in out
+        assert "Boyz (10 models) — fighting Necron Warriors" in out
+        # The right pick's payoff, in the dice: 12 Immortal dice instead of 20...
+        assert "6 models x 2 attacks = 12 dice" in out
+        # ...and the kept-waiting Warriors answer with 4 dice instead of 10.
+        assert "4 models x 1 attacks = 4 dice" in out
+
     def test_first_blood_shows_the_fight_phase_and_the_reduced_return_swing(self) -> None:
         result = CliRunner().invoke(
             main, ["play", "08_first_blood", "--seed", "20"], input="\n\n"
